@@ -10,10 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "firebase": "^10.0.0",        <-- MAKE SURE THIS COMMA IS HERE
-    "lucide-react": "^0.469.0"    <-- Add this line
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "lucide-react": "^0.469.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
