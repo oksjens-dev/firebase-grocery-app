@@ -48,7 +48,6 @@ const getFirebaseConfig = () => {
   }
 
   // 2. Try Vite Environment Variables (Standard for Vercel + Vite)
-  // This allows you to configure secrets in Vercel settings without committing them.
   try {
     if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
       return {
@@ -65,8 +64,6 @@ const getFirebaseConfig = () => {
   }
 
   // 3. Hardcoded Fallback
-  // This uses the specific keys you provided to ensure the app loads immediately
-  // on Vercel even if Env Vars fail or aren't set yet.
   return {
       apiKey: "AIzaSyClZXzh2kdD8pCbNaW6EDRUENERrIYOakU",
       authDomain: "our-grocery-app--muc-kitchen.firebaseapp.com",
@@ -545,20 +542,67 @@ export default function App() {
     } catch(e) { console.error(e) }
   };
 
-  // --- Render Views (Converted to helper functions to prevent focus loss issues) ---
+  // --- Render Header Logic ---
+  const renderHeader = () => {
+    switch (activeTab) {
+      case 'shopping':
+        return (
+          <div className="flex justify-between items-center py-2">
+            <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
+            <button
+              onClick={() => setIsAddItemOpen(true)}
+              className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
+            >
+              <Plus size={24} />
+            </button>
+          </div>
+        );
+      case 'recipes':
+        return (
+          <div className="py-2 space-y-3">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
+              <button
+                onClick={() => setIsAddRecipeOpen(true)}
+                className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
+              >
+                <Plus size={24} />
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search recipes..." 
+                value={recipeSearchTerm}
+                onChange={(e) => setRecipeSearchTerm(e.target.value)}
+                className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all"
+              />
+            </div>
+          </div>
+        );
+      case 'history':
+        return (
+          <div className="py-2">
+            <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
+            <p className="text-sm text-gray-500">Tap + to add back to shopping list.</p>
+          </div>
+        );
+      case 'analytics':
+        return (
+          <div className="py-2">
+            <h1 className="text-2xl font-bold text-gray-800">Analytics & Plan</h1>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  // --- Render Content Views (Headers Removed) ---
 
   const renderShoppingListView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex justify-between items-center mb-4 sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
-        <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
-        <button
-          onClick={() => setIsAddItemOpen(true)}
-          className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
-        >
-          <Plus size={24} />
-        </button>
-      </div>
-
       {shoppingList.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
@@ -595,11 +639,6 @@ export default function App() {
 
   const renderHistoryView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
-         <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
-         <p className="text-sm text-gray-500">Tap + to add back to shopping list.</p>
-      </div>
-
       <div className="space-y-2">
         {historyList.map(item => (
           <div
@@ -630,30 +669,6 @@ export default function App() {
 
   const renderRecipesView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 -mx-2 px-2 pt-2 pb-3 border-b border-gray-100 shadow-sm">
-        <div className="flex justify-between items-center mb-3">
-          <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
-          <button
-            onClick={() => setIsAddRecipeOpen(true)}
-            className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
-          >
-            <Plus size={24} />
-          </button>
-        </div>
-        
-        {/* Search Bar - Fixed: Input maintains focus */}
-        <div className="relative">
-          <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Search recipes..." 
-            value={recipeSearchTerm}
-            onChange={(e) => setRecipeSearchTerm(e.target.value)}
-            className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all"
-          />
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {filteredRecipes.map(recipe => (
           <div
@@ -703,10 +718,6 @@ export default function App() {
 
     return (
       <div className="space-y-6 pb-24 animate-in fade-in zoom-in-95 duration-300">
-        <div className="sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
-           <h1 className="text-2xl font-bold text-gray-800">Analytics & Plan</h1>
-        </div>
-
         <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
           <h2 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
             <Calendar size={18} /> Next Meals
@@ -886,6 +897,14 @@ export default function App() {
         {/* Mobile Device Simulation/Actual Container */}
         <div className="w-full max-w-md h-full bg-white shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-gray-800">
           
+          {/* Status Bar */}
+          <div className="h-6 bg-white w-full shrink-0 sm:block hidden"></div>
+
+          {/* Fixed Top Header (Outside ScrollView) */}
+          <div className="px-4 pt-2 pb-2 bg-white z-20 shrink-0 border-b border-gray-50">
+             {renderHeader()}
+          </div>
+
           {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
           <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
             {activeTab === 'shopping' && renderShoppingListView()}
