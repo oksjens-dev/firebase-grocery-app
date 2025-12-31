@@ -9,11 +9,12 @@
     "lint": "eslint .",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "lucide-react": "^0.469.0",    <-- (Don't forget the comma here!)
-    "firebase": "^10.13.0"
+"dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "firebase": "^10.13.0",
+    "lucide-react": "^0.469.0"
+  },
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
