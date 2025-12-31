@@ -270,6 +270,9 @@ export default function App() {
   const [isSelectRecipeOpen, setIsSelectRecipeOpen] = useState(false);
   const [planningDayOffset, setPlanningDayOffset] = useState(null);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
+  
+  // New State for Meal Selection Filter
+  const [mealSearchTerm, setMealSearchTerm] = useState('');
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -464,11 +467,12 @@ export default function App() {
     }
   };
 
-  const deleteMeal = async (id) => {
+  // Fixed: explicitly deletes ONLY from 'meals' collection
+  const deleteMeal = async (mealId) => {
     if (!user) return;
     if (!window.confirm("Remove this meal from the plan?")) return;
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'meals', id));
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'meals', mealId));
     } catch (e) {
       console.error("Error deleting meal", e);
     }
@@ -749,6 +753,7 @@ export default function App() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setPlanningDayOffset(offset);
+                            setMealSearchTerm(''); // Reset search when opening
                             setIsSelectRecipeOpen(true);
                           }}
                           className="bg-white text-indigo-600 rounded-full p-1 shadow-sm hover:bg-indigo-100 relative z-10 transition-colors"
@@ -1010,11 +1015,30 @@ export default function App() {
 
           <Modal isOpen={isSelectRecipeOpen} onClose={() => setIsSelectRecipeOpen(false)} title="Select Meal">
             <div className="space-y-3">
-               <p className="text-sm text-gray-500 mb-2">This will add the meal to your plan and ingredients to your list.</p>
-               {recipes.length === 0 ? (
-                 <div className="text-center py-8 text-gray-400">No recipes yet.</div>
-               ) : (
-                 recipes.map(recipe => (
+               <p className="text-sm text-gray-500">This will add the meal to your plan and ingredients to your list.</p>
+               
+               {/* New Search Bar for Select Meal */}
+               <div className="relative mb-2">
+                  <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                  <input 
+                    autoFocus
+                    type="text" 
+                    placeholder="Search available recipes..." 
+                    value={mealSearchTerm}
+                    onChange={(e) => setMealSearchTerm(e.target.value)}
+                    className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all"
+                  />
+               </div>
+
+               {/* Filtered List Logic */}
+               {(() => {
+                 const filteredMealRecipes = recipes.filter(r => r.name.toLowerCase().includes(mealSearchTerm.toLowerCase()));
+                 
+                 if (filteredMealRecipes.length === 0) {
+                   return <div className="text-center py-8 text-gray-400">No recipes match "{mealSearchTerm}".</div>;
+                 }
+
+                 return filteredMealRecipes.map(recipe => (
                    <button key={recipe.id} onClick={() => { planMeal(recipe, planningDayOffset); setIsSelectRecipeOpen(false); }} className="w-full text-left p-4 rounded-xl bg-gray-50 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-all group active:scale-[0.98]">
                      <div className="flex justify-between items-center">
                        <span className="font-bold text-gray-700 group-hover:text-indigo-700">{recipe.name}</span>
@@ -1022,8 +1046,8 @@ export default function App() {
                      </div>
                      <span className="text-xs text-gray-400">{recipe.ingredients.length} ingredients</span>
                    </button>
-                 ))
-               )}
+                 ));
+               })()}
             </div>
           </Modal>
         </div>
