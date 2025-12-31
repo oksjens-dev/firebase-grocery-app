@@ -17,8 +17,7 @@ import {
   Trophy,
   Edit2,
   Save,
-  Search,
-  AlertCircle
+  Search
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -41,30 +40,7 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
-// NOTE: This logic ensures it works in the Preview environment AND gives you a place 
-// to paste your keys for Vercel.
-let firebaseConfig;
-try {
-  if (typeof __firebase_config !== 'undefined') {
-    // Canvas/Preview Environment
-    firebaseConfig = JSON.parse(__firebase_config);
-  } else {
-    // Local/Vercel Environment
-    // TODO: Replace these placeholders with your actual Firebase project config
-    firebaseConfig = {
-      apiKey: "REPLACE_WITH_YOUR_API_KEY",
-      authDomain: "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
-      projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
-      storageBucket: "REPLACE_WITH_YOUR_PROJECT_ID.appspot.com",
-      messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
-      appId: "REPLACE_WITH_YOUR_APP_ID"
-    };
-  }
-} catch (e) {
-  console.error("Firebase Config Parsing Error:", e);
-}
-
-// Initialize Firebase
+const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -88,14 +64,14 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-xl flex flex-col animate-slide-up">
-        <div className="flex justify-between items-center p-4 border-b bg-white z-10 shrink-0">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col animate-slide-up shadow-2xl">
+        <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 overflow-y-auto">
+        <div className="p-4 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>
@@ -244,7 +220,6 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [authError, setAuthError] = useState(null); // Added error state
   const [activeTab, setActiveTab] = useState('shopping'); 
   
   // Data State
@@ -273,42 +248,17 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
-    let mounted = true;
-    
     const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (error) {
-        console.error("Auth failed:", error);
-        if (mounted) {
-           // If custom token fails, try one more time with anonymous
-           if (typeof __initial_auth_token !== 'undefined') {
-              try {
-                await signInAnonymously(auth);
-                return; // Success on fallback
-              } catch(e) { /* ignore inner error */ }
-           }
-           setAuthError(error.message);
-        }
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
       }
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (mounted) {
-        setUser(u);
-        if (u) setAuthError(null); // Clear error if success
-      }
-    });
-    
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -817,30 +767,6 @@ export default function App() {
 
   // --- Render ---
 
-  if (authError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-red-100">
-           <div className="flex justify-center mb-4">
-             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500">
-               <AlertCircle size={32} />
-             </div>
-           </div>
-           <h2 className="text-xl font-bold text-center text-gray-900 mb-2">Setup Required</h2>
-           <p className="text-center text-gray-600 mb-4">
-             The app couldn't connect to Firebase.
-           </p>
-           <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 font-mono mb-4 overflow-x-auto">
-             {authError.includes("api-key") ? "Missing/Invalid API Key in Config" : authError}
-           </div>
-           <p className="text-xs text-gray-400 text-center">
-             If you are deploying this to Vercel or running locally, make sure you have replaced the `firebaseConfig` placeholders in the code with your actual project keys.
-           </p>
-        </div>
-      </div>
-    );
-  }
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -867,21 +793,31 @@ export default function App() {
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
       `}</style>
-      <div className="min-h-screen bg-gray-100 font-sans text-gray-900 pb-safe flex justify-center items-center">
-        {/* Mobile Device Simulation Container - Fixed Height for Scrolling */}
-        <div className="w-full max-w-md bg-white shadow-2xl relative h-[95vh] sm:h-[850px] sm:rounded-[3rem] sm:border-[8px] sm:border-gray-800 overflow-hidden flex flex-col">
+      {/* Outer Container for Full Viewport on Mobile */}
+      <div className="fixed inset-0 w-full h-[100dvh] bg-gray-100 font-sans text-gray-900 flex justify-center items-center">
+        {/* Mobile Device Simulation/Actual Container */}
+        <div className="w-full max-w-md h-full bg-white shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-gray-800">
           
-          {/* Status Bar for Aesthetic */}
-          <div className="h-6 bg-white w-full shrink-0 sm:block hidden"></div>
-
-          <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative">
+          {/* Main Scrolling Area */}
+          <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
             {activeTab === 'shopping' && <ShoppingListView />}
             {activeTab === 'recipes' && <RecipesView />}
             {activeTab === 'history' && <HistoryView />}
             {activeTab === 'analytics' && <AnalyticsView />}
           </main>
 
+          {/* Fixed Navigation Bar */}
           <nav className="absolute bottom-0 left-0 right-0 z-50">
             <div className="bg-white/95 backdrop-blur-2xl border-t border-slate-200 pb-safe transition-all shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
               <div className="flex justify-around items-center h-20 px-2 pb-2">
@@ -913,6 +849,7 @@ export default function App() {
             </div>
           </nav>
 
+          {/* Modals */}
           <Modal isOpen={isAddItemOpen} onClose={() => { setIsAddItemOpen(false); setIsCreatingCategory(false); }} title="Add Item">
             <div className="space-y-4">
               <div>
