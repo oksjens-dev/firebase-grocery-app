@@ -17,7 +17,8 @@ import {
   Trophy,
   Edit2,
   Save,
-  Search
+  Search,
+  AlertCircle
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -40,7 +41,30 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
-const firebaseConfig = JSON.parse(__firebase_config);
+// NOTE: This logic ensures it works in the Preview environment AND gives you a place 
+// to paste your keys for Vercel.
+let firebaseConfig;
+try {
+  if (typeof __firebase_config !== 'undefined') {
+    // Canvas/Preview Environment
+    firebaseConfig = JSON.parse(__firebase_config);
+  } else {
+    // Local/Vercel Environment
+    // TODO: Replace these placeholders with your actual Firebase project config
+    firebaseConfig = {
+      apiKey: "REPLACE_WITH_YOUR_API_KEY",
+      authDomain: "REPLACE_WITH_YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "REPLACE_WITH_YOUR_PROJECT_ID",
+      storageBucket: "REPLACE_WITH_YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "REPLACE_WITH_YOUR_SENDER_ID",
+      appId: "REPLACE_WITH_YOUR_APP_ID"
+    };
+  }
+} catch (e) {
+  console.error("Firebase Config Parsing Error:", e);
+}
+
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -220,6 +244,7 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState(null); // Added error state
   const [activeTab, setActiveTab] = useState('shopping'); 
   
   // Data State
@@ -248,17 +273,42 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
+    let mounted = true;
+    
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth failed:", error);
+        if (mounted) {
+           // If custom token fails, try one more time with anonymous
+           if (typeof __initial_auth_token !== 'undefined') {
+              try {
+                await signInAnonymously(auth);
+                return; // Success on fallback
+              } catch(e) { /* ignore inner error */ }
+           }
+           setAuthError(error.message);
+        }
       }
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (mounted) {
+        setUser(u);
+        if (u) setAuthError(null); // Clear error if success
+      }
+    });
+    
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -766,6 +816,30 @@ export default function App() {
   };
 
   // --- Render ---
+
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-red-100">
+           <div className="flex justify-center mb-4">
+             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500">
+               <AlertCircle size={32} />
+             </div>
+           </div>
+           <h2 className="text-xl font-bold text-center text-gray-900 mb-2">Setup Required</h2>
+           <p className="text-center text-gray-600 mb-4">
+             The app couldn't connect to Firebase.
+           </p>
+           <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700 font-mono mb-4 overflow-x-auto">
+             {authError.includes("api-key") ? "Missing/Invalid API Key in Config" : authError}
+           </div>
+           <p className="text-xs text-gray-400 text-center">
+             If you are deploying this to Vercel or running locally, make sure you have replaced the `firebaseConfig` placeholders in the code with your actual project keys.
+           </p>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
