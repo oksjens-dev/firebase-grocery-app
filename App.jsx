@@ -14,7 +14,11 @@ import {
   Utensils,
   Award,
   CalendarPlus,
-  Trophy
+  Trophy,
+  Edit2,
+  Save,
+  Search,
+  AlertCircle
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -36,15 +40,21 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// --- Firebase Configuration (Adapted for Preview Environment) ---
-// We use the environment's config here so the preview works instantly.
-// In your real app, keep your specific config.
-const firebaseConfig = JSON.parse(__firebase_config);
+// --- Firebase Configuration ---
+// Wrapped in try/catch to prevent white-screen crashes if config is missing
+let firebaseConfig;
+try {
+  firebaseConfig = JSON.parse(__firebase_config);
+} catch (e) {
+  console.error("Firebase config missing or invalid:", e);
+  // Fallback to avoid immediate crash, auth will fail gracefully later
+  firebaseConfig = { apiKey: "dummy", projectId: "dummy" }; 
+}
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Use the environment's appId to ensure database permissions work in this preview
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- Constants ---
@@ -64,14 +74,14 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl flex flex-col animate-slide-up">
-        <div className="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
-          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col animate-slide-up shadow-2xl">
+        <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
+          <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 overflow-y-auto">
+        <div className="p-4 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>
@@ -107,10 +117,120 @@ const PodiumStep = ({ rank, recipe, height, color, textColor }) => (
   </div>
 );
 
+// New Component for Editable Recipe Details
+const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(recipe.name);
+  const [editedIngredients, setEditedIngredients] = useState(recipe.ingredients.map(i => i.name).join('\n'));
+  const [editedInstructions, setEditedInstructions] = useState(recipe.instructions || '');
+
+  const handleSave = () => {
+    const ingredientsList = editedIngredients
+      .split('\n')
+      .filter(l => l.trim().length > 0)
+      .map(l => ({ name: l.trim(), isDone: false }));
+      
+    onUpdate(recipe.id, {
+      name: editedName,
+      ingredients: ingredientsList,
+      instructions: editedInstructions
+    });
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Recipe Name</label>
+          <input 
+            type="text" 
+            value={editedName} 
+            onChange={(e) => setEditedName(e.target.value)} 
+            className="w-full bg-gray-50 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-800"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Ingredients (one per line)</label>
+          <textarea 
+            value={editedIngredients} 
+            onChange={(e) => setEditedIngredients(e.target.value)} 
+            className="w-full bg-gray-50 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none h-32 resize-none font-mono text-sm" 
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Instructions</label>
+          <textarea 
+            value={editedInstructions} 
+            onChange={(e) => setEditedInstructions(e.target.value)} 
+            className="w-full bg-gray-50 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none h-32 resize-none text-sm" 
+          />
+        </div>
+        <div className="flex gap-2 pt-2">
+          <button 
+            onClick={() => setIsEditing(false)} 
+            className="flex-1 bg-gray-100 text-gray-700 p-3 rounded-xl font-bold hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            onClick={handleSave} 
+            className="flex-1 bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+          >
+            <Save size={18} /> Save Changes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-end">
+        <button 
+          onClick={() => setIsEditing(true)} 
+          className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors"
+        >
+          <Edit2 size={16} /> Edit Recipe
+        </button>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-xl">
+         <h4 className="font-bold text-gray-500 text-xs uppercase tracking-wide mb-3">Ingredients</h4>
+         <ul className="space-y-2">
+           {recipe.ingredients.map((ing, i) => (
+              <li key={i} className="flex items-start gap-3 text-gray-800 text-sm">
+                <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-1.5 shrink-0"></div> 
+                <span className="leading-snug">{ing.name}</span>
+              </li>
+           ))}
+         </ul>
+      </div>
+
+      {recipe.instructions && (
+        <div>
+           <h4 className="font-bold text-gray-500 text-xs uppercase tracking-wide mb-2">Instructions</h4>
+           <div className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed bg-white border border-gray-100 p-4 rounded-xl">
+             {recipe.instructions}
+           </div>
+        </div>
+      )}
+
+      <button 
+        onClick={() => { onAddIngredients(recipe); onClose(); }} 
+        className="w-full bg-indigo-600 text-white p-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 active:scale-95 flex items-center justify-center gap-2"
+      >
+        <Plus size={20} /> Add Ingredients to List
+      </button>
+    </div>
+  );
+};
+
 // --- Main App Component ---
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState(null); // Fix for infinite loading
   const [activeTab, setActiveTab] = useState('shopping'); 
   
   // Data State
@@ -124,6 +244,7 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [isSelectRecipeOpen, setIsSelectRecipeOpen] = useState(false);
   const [planningDayOffset, setPlanningDayOffset] = useState(null);
+  const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -138,24 +259,47 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
-    // Robust Auth Pattern for Preview Environment
+    let mounted = true;
+
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (e) {
+        console.error("Auth error:", e);
+        // Fallback to anonymous auth if custom token fails (e.g. stale token)
+        if (typeof __initial_auth_token !== 'undefined') {
+             try {
+               await signInAnonymously(auth);
+             } catch (anonError) {
+               if(mounted) setAuthError("Failed to sign in. Please refresh.");
+             }
+        } else {
+             if(mounted) setAuthError(e.message);
+        }
       }
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (mounted) {
+        setUser(u);
+        if (u) setAuthError(null);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (!user) return;
 
-    // Using 'public' data path to allow shared lists in this preview
     const itemsRef = collection(db, 'artifacts', appId, 'public', 'data', 'items');
     const recipesRef = collection(db, 'artifacts', appId, 'public', 'data', 'recipes');
     const mealsRef = collection(db, 'artifacts', appId, 'public', 'data', 'meals');
@@ -186,6 +330,11 @@ export default function App() {
   const shoppingList = useMemo(() => items.filter(i => !i.isBought).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds), [items]);
   const historyList = useMemo(() => items.filter(i => i.isBought).sort((a,b) => b.boughtAt?.seconds - a.boughtAt?.seconds), [items]);
   
+  const filteredRecipes = useMemo(() => {
+    if (!recipeSearchTerm) return recipes;
+    return recipes.filter(r => r.name.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
+  }, [recipes, recipeSearchTerm]);
+
   const topRecipes = useMemo(() => {
     const counts = {};
     mealPlan.forEach(meal => {
@@ -276,13 +425,25 @@ export default function App() {
 
   const deleteRecipe = async (id) => {
     if (!user) return;
-    // Note: window.confirm works but is blocking. In a real native app, use a custom modal.
     if (!window.confirm("Are you sure you want to delete this recipe?")) return;
     try {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'recipes', id));
       if (selectedRecipe && selectedRecipe.id === id) setSelectedRecipe(null);
     } catch (e) {
       console.error("Error deleting recipe", e);
+    }
+  };
+
+  const updateRecipe = async (id, updatedData) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'recipes', id);
+      await updateDoc(docRef, updatedData);
+      if (selectedRecipe && selectedRecipe.id === id) {
+        setSelectedRecipe({ ...selectedRecipe, ...updatedData });
+      }
+    } catch (e) {
+      console.error("Error updating recipe", e);
     }
   };
 
@@ -326,7 +487,6 @@ export default function App() {
       await addItem(ing.name, 'other');
     });
     await Promise.all(promises);
-    // Note: alert is used here for simplicity as per original code
     if (showAlert) alert(`Added ingredients for ${recipe.name} to list!`);
   };
 
@@ -450,18 +610,32 @@ export default function App() {
 
   const RecipesView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex justify-between items-center mb-4 sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
-        <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
-        <button
-          onClick={() => setIsAddRecipeOpen(true)}
-          className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
-        >
-          <Plus size={24} />
-        </button>
+      <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 -mx-2 px-2 pt-2 pb-3 border-b border-gray-100 shadow-sm">
+        <div className="flex justify-between items-center mb-3">
+          <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
+          <button
+            onClick={() => setIsAddRecipeOpen(true)}
+            className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
+          >
+            <Plus size={24} />
+          </button>
+        </div>
+        
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+          <input 
+            type="text" 
+            placeholder="Search recipes..." 
+            value={recipeSearchTerm}
+            onChange={(e) => setRecipeSearchTerm(e.target.value)}
+            className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {recipes.map(recipe => (
+        {filteredRecipes.map(recipe => (
           <div
             key={recipe.id}
             onClick={() => setSelectedRecipe(recipe)}
@@ -475,12 +649,12 @@ export default function App() {
                 e.stopPropagation();
                 deleteRecipe(recipe.id);
               }}
-              className="absolute top-2 right-2 p-1.5 bg-gray-100 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 z-20 transition-colors"
+              className="absolute top-2 right-2 p-1.5 bg-gray-100 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 z-20 transition-colors opacity-0 group-hover:opacity-100"
             >
               <Trash2 size={14} />
             </button>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700">
+              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 shrink-0">
                 <ChefHat size={20} />
               </div>
               <h3 className="font-bold text-gray-800 line-clamp-1 pr-6">{recipe.name}</h3>
@@ -489,11 +663,11 @@ export default function App() {
           </div>
         ))}
       </div>
-      {recipes.length === 0 && (
+      {filteredRecipes.length === 0 && (
          <div className="text-center py-12 text-gray-400">
            <Utensils size={48} className="mx-auto mb-2 opacity-50" />
-           <p>No recipes saved.</p>
-           <p className="text-sm">Create your first master dish!</p>
+           <p>No recipes found.</p>
+           {recipes.length === 0 && <p className="text-sm">Create your first master dish!</p>}
          </div>
       )}
     </div>
@@ -626,6 +800,20 @@ export default function App() {
   };
 
   // --- Render ---
+  
+  // New Error State Display
+  if (authError) {
+    return (
+       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg text-center">
+           <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+           <h2 className="text-xl font-bold text-gray-900 mb-2">Connection Issue</h2>
+           <p className="text-gray-600 mb-4">{authError}</p>
+           <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold">Retry</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -654,17 +842,31 @@ export default function App() {
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
       `}</style>
-      <div className="min-h-screen bg-gray-100 font-sans text-gray-900 pb-safe flex justify-center">
-        {/* Mobile Device Simulation Container */}
-        <div className="w-full max-w-md bg-white shadow-2xl relative min-h-screen overflow-hidden">
-          <main className="p-4 pt-8 h-full min-h-screen box-border pb-28 overflow-y-auto">
+      {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
+      <div className="fixed inset-0 w-full h-[100dvh] bg-gray-100 font-sans text-gray-900 flex justify-center items-center">
+        {/* Mobile Device Simulation/Actual Container */}
+        <div className="w-full max-w-md h-full bg-white shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-gray-800">
+          
+          {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
+          <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
             {activeTab === 'shopping' && <ShoppingListView />}
             {activeTab === 'recipes' && <RecipesView />}
             {activeTab === 'history' && <HistoryView />}
             {activeTab === 'analytics' && <AnalyticsView />}
           </main>
 
+          {/* Fixed Navigation Bar */}
           <nav className="absolute bottom-0 left-0 right-0 z-50">
             <div className="bg-white/95 backdrop-blur-2xl border-t border-slate-200 pb-safe transition-all shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
               <div className="flex justify-around items-center h-20 px-2 pb-2">
@@ -740,26 +942,23 @@ export default function App() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ingredients (one per line)</label>
                 <textarea value={newRecipeIngredients} onChange={(e) => setNewRecipeIngredients(e.target.value)} placeholder="Spaghetti&#10;Eggs&#10;Bacon&#10;Parmesan" rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
               </div>
+               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
+                <textarea value={newRecipeInstructions} onChange={(e) => setNewRecipeInstructions(e.target.value)} placeholder="1. Boil pasta..." rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
+              </div>
               <button onClick={addRecipe} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Save Recipe</button>
             </div>
           </Modal>
 
           <Modal isOpen={!!selectedRecipe} onClose={() => setSelectedRecipe(null)} title={selectedRecipe?.name}>
-             <div className="space-y-6">
-                <div className="bg-gray-50 p-4 rounded-xl">
-                  <h3 className="font-bold text-gray-800 mb-2 flex items-center gap-2">
-                    <ShoppingCart size={18} className="text-emerald-600" /> Ingredients
-                  </h3>
-                  <ul className="list-disc list-inside space-y-1 text-gray-700">
-                    {selectedRecipe?.ingredients.map((ing, idx) => (
-                      <li key={idx}>{ing.name}</li>
-                    ))}
-                  </ul>
-                </div>
-                <button onClick={() => { addRecipeToShoppingList(selectedRecipe); setSelectedRecipe(null); }} className="w-full bg-indigo-600 text-white p-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 shadow-lg active:scale-95">
-                  <Plus size={20} /> Add to Shopping List
-                </button>
-             </div>
+             {selectedRecipe && (
+                <RecipeDetailContent 
+                  recipe={selectedRecipe} 
+                  onClose={() => setSelectedRecipe(null)}
+                  onUpdate={updateRecipe}
+                  onAddIngredients={addRecipeToShoppingList}
+                />
+             )}
           </Modal>
 
           <Modal isOpen={isSelectRecipeOpen} onClose={() => setIsSelectRecipeOpen(false)} title="Select Meal">
