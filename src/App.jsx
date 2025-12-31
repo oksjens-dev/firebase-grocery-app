@@ -41,21 +41,43 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
-// This check allows the app to work automatically in the preview (Canvas).
-// For Vercel/GitHub: 
-// 1. You can configure Environment Variables in your Vercel Project Settings.
-// 2. Or replace the strings in the fallback object with your actual config.
-const firebaseConfig = typeof __firebase_config !== 'undefined' 
-  ? JSON.parse(__firebase_config) 
-  : { 
-      apiKey: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_API_KEY || "YOUR_API_KEY", 
-      authDomain: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT.firebaseapp.com",
-      projectId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
-      storageBucket: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT.appspot.com",
-      messagingSenderId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "SENDER_ID",
-      appId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_APP_ID || "APP_ID"
-    };
+const getFirebaseConfig = () => {
+  // 1. Try Canvas Preview Environment (Injected by system)
+  if (typeof __firebase_config !== 'undefined') {
+    return JSON.parse(__firebase_config);
+  }
 
+  // 2. Try Vite Environment Variables (Standard for Vercel + Vite)
+  // This allows you to configure secrets in Vercel settings without committing them.
+  try {
+    if (import.meta.env && import.meta.env.VITE_FIREBASE_API_KEY) {
+      return {
+        apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+        authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+        storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+        messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+        appId: import.meta.env.VITE_FIREBASE_APP_ID,
+      };
+    }
+  } catch (e) {
+    // Ignore errors if not in a Vite environment
+  }
+
+  // 3. Hardcoded Fallback
+  // This uses the specific keys you provided to ensure the app loads immediately
+  // on Vercel even if Env Vars fail or aren't set yet.
+  return {
+      apiKey: "AIzaSyClZXzh2kdD8pCbNaW6EDRUENERrIYOakU",
+      authDomain: "our-grocery-app--muc-kitchen.firebaseapp.com",
+      projectId: "our-grocery-app--muc-kitchen",
+      storageBucket: "our-grocery-app--muc-kitchen.firebasestorage.app",
+      messagingSenderId: "167242896960",
+      appId: "1:167242896960:web:12ee5a8f54f78b496571a5"
+  };
+};
+
+const firebaseConfig = getFirebaseConfig();
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -265,7 +287,7 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
-    // Show a helpful message if loading takes too long (e.g. poor connection or missing config)
+    // Show a helpful message if loading takes too long
     const timer = setTimeout(() => setIsLoadingLong(true), 4000);
 
     const initAuth = async () => {
@@ -277,7 +299,6 @@ export default function App() {
         }
       } catch (error) {
         console.error("Auth failed:", error);
-        // Set error state to display in UI instead of hanging
         setAuthError(error.message);
       }
     };
