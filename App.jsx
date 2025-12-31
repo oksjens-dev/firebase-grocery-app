@@ -17,7 +17,8 @@ import {
   Trophy,
   Edit2,
   Save,
-  Search
+  Search,
+  AlertCircle
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -40,17 +41,19 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
-// This check allows the app to work automatically in the preview.
-// For Vercel/GitHub: Replace the object in the 'else' block with your actual config.
+// This check allows the app to work automatically in the preview (Canvas).
+// For Vercel/GitHub: 
+// 1. You can configure Environment Variables in your Vercel Project Settings.
+// 2. Or replace the strings in the fallback object with your actual config.
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
   : { 
-      apiKey: "YOUR_API_KEY", 
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "SENDER_ID",
-      appId: "APP_ID"
+      apiKey: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_API_KEY || "YOUR_API_KEY", 
+      authDomain: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT.firebaseapp.com",
+      projectId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+      storageBucket: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT.appspot.com",
+      messagingSenderId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "SENDER_ID",
+      appId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_APP_ID || "APP_ID"
     };
 
 const app = initializeApp(firebaseConfig);
@@ -232,6 +235,8 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState(null);
+  const [isLoadingLong, setIsLoadingLong] = useState(false);
   const [activeTab, setActiveTab] = useState('shopping'); 
   
   // Data State
@@ -260,7 +265,9 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
-    // Restored simple, reliable auth logic
+    // Show a helpful message if loading takes too long (e.g. poor connection or missing config)
+    const timer = setTimeout(() => setIsLoadingLong(true), 4000);
+
     const initAuth = async () => {
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -270,12 +277,23 @@ export default function App() {
         }
       } catch (error) {
         console.error("Auth failed:", error);
+        // Set error state to display in UI instead of hanging
+        setAuthError(error.message);
       }
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+        setAuthError(null);
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -784,10 +802,32 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-pulse flex flex-col items-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="animate-pulse flex flex-col items-center max-w-xs text-center">
           <ChefHat size={48} className="text-indigo-600 mb-4" />
-          <p className="text-gray-500 font-medium">Loading your kitchen...</p>
+          
+          {/* Display auth error if one exists, otherwise show loading */}
+          {authError ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2 text-red-500 font-bold">
+                <AlertCircle size={20} />
+                <span>Connection Issue</span>
+              </div>
+              <p className="text-gray-600 text-xs">{authError}</p>
+              <div className="bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded-lg mt-2 text-left">
+                <strong>Vercel Setup:</strong> Please ensure your Firebase keys are set in your project environment variables or in the App.jsx file.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-gray-500 font-medium">Loading your kitchen...</p>
+              {isLoadingLong && (
+                <p className="text-xs text-gray-400 animate-fade-in">
+                  Taking longer than usual... Check your internet or config.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
