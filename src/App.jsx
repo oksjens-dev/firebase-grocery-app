@@ -17,7 +17,8 @@ import {
   Trophy,
   Edit2,
   Save,
-  Search
+  Search,
+  AlertCircle
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -40,18 +41,19 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
-// NOTE: When deploying to Vercel/GitHub, replace the fallback object below 
-// with your actual Firebase configuration from the Firebase Console.
+// This check allows the app to work automatically in the preview (Canvas).
+// For Vercel/GitHub: 
+// 1. You can configure Environment Variables in your Vercel Project Settings.
+// 2. Or replace the strings in the fallback object with your actual config.
 const firebaseConfig = typeof __firebase_config !== 'undefined' 
   ? JSON.parse(__firebase_config) 
-  : {
-      // PASTE YOUR REAL CONFIG HERE FOR VERCEL DEPLOYMENT
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "SENDER_ID",
-      appId: "APP_ID"
+  : { 
+      apiKey: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_API_KEY || "YOUR_API_KEY", 
+      authDomain: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT.firebaseapp.com",
+      projectId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+      storageBucket: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT.appspot.com",
+      messagingSenderId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "SENDER_ID",
+      appId: typeof process !== 'undefined' && process.env?.REACT_APP_FIREBASE_APP_ID || "APP_ID"
     };
 
 const app = initializeApp(firebaseConfig);
@@ -77,14 +79,14 @@ const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-hidden shadow-xl flex flex-col animate-slide-up">
-        <div className="flex justify-between items-center p-4 border-b bg-white z-10 shrink-0">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col animate-slide-up shadow-2xl">
+        <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 overflow-y-auto">
+        <div className="p-4 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>
@@ -233,6 +235,8 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [authError, setAuthError] = useState(null);
+  const [isLoadingLong, setIsLoadingLong] = useState(false);
   const [activeTab, setActiveTab] = useState('shopping'); 
   
   // Data State
@@ -261,17 +265,35 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
+    // Show a helpful message if loading takes too long (e.g. poor connection or missing config)
+    const timer = setTimeout(() => setIsLoadingLong(true), 4000);
+
     const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth failed:", error);
+        // Set error state to display in UI instead of hanging
+        setAuthError(error.message);
       }
     };
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+        setAuthError(null);
+      }
+    });
+    
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -506,7 +528,7 @@ export default function App() {
 
   const ShoppingListView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex justify-between items-center mb-4 sticky top-0 bg-white/95 backdrop-blur-md py-4 z-10 -mx-4 px-4 border-b border-gray-100 shadow-sm">
+      <div className="flex justify-between items-center mb-4 sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
         <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
         <button
           onClick={() => setIsAddItemOpen(true)}
@@ -523,7 +545,7 @@ export default function App() {
           <p className="text-sm">Add items or check your recipes!</p>
         </div>
       ) : (
-        <div className="space-y-2 px-1">
+        <div className="space-y-2">
           {shoppingList.map(item => (
             <div
               key={item.id}
@@ -552,12 +574,12 @@ export default function App() {
 
   const HistoryView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="sticky top-0 bg-white/95 backdrop-blur-md py-4 z-10 -mx-4 px-4 border-b border-gray-100 shadow-sm">
+      <div className="sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
          <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
          <p className="text-sm text-gray-500">Tap + to add back to shopping list.</p>
       </div>
 
-      <div className="space-y-2 px-1">
+      <div className="space-y-2">
         {historyList.map(item => (
           <div
             key={item.id}
@@ -587,7 +609,7 @@ export default function App() {
 
   const RecipesView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="sticky top-0 bg-white/95 backdrop-blur-md z-10 -mx-4 px-4 pt-4 pb-3 border-b border-gray-100 shadow-sm">
+      <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 -mx-2 px-2 pt-2 pb-3 border-b border-gray-100 shadow-sm">
         <div className="flex justify-between items-center mb-3">
           <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
           <button
@@ -611,7 +633,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-1">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {filteredRecipes.map(recipe => (
           <div
             key={recipe.id}
@@ -660,120 +682,118 @@ export default function App() {
 
     return (
       <div className="space-y-6 pb-24 animate-in fade-in zoom-in-95 duration-300">
-        <div className="sticky top-0 bg-white/95 backdrop-blur-md py-4 z-10 -mx-4 px-4 border-b border-gray-100 shadow-sm">
+        <div className="sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
            <h1 className="text-2xl font-bold text-gray-800">Analytics & Plan</h1>
         </div>
 
-        <div className="px-1 space-y-6">
-          <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
-              <Calendar size={18} /> Next Meals
-            </h2>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {[0, 1, 2, 3].map(offset => {
-                const date = new Date();
-                date.setDate(date.getDate() + offset);
-                const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-                const plannedMeal = mealPlan.find(m => new Date(m.date).toDateString() === date.toDateString());
-                const recipeName = plannedMeal ? recipes.find(r => r.id === plannedMeal.recipeId)?.name : null;
+        <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+            <Calendar size={18} /> Next Meals
+          </h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {[0, 1, 2, 3].map(offset => {
+               const date = new Date();
+               date.setDate(date.getDate() + offset);
+               const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+               const plannedMeal = mealPlan.find(m => new Date(m.date).toDateString() === date.toDateString());
+               const recipeName = plannedMeal ? recipes.find(r => r.id === plannedMeal.recipeId)?.name : null;
 
-                return (
-                  <div key={offset} className="min-w-[130px] bg-indigo-50 p-3 rounded-xl flex flex-col justify-between h-28 relative group transition-transform hover:scale-[1.02]">
-                    <div className="flex justify-between items-start">
-                      <span className="text-xs font-bold text-indigo-400 uppercase">{dayName}</span>
-                      {plannedMeal ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteMeal(plannedMeal.id);
-                            }}
-                            className="bg-white text-red-400 rounded-full p-1 shadow-sm hover:bg-red-50 hover:text-red-600 relative z-10 transition-colors"
-                          >
-                            <X size={14} />
-                          </button>
-                      ) : (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPlanningDayOffset(offset);
-                              setIsSelectRecipeOpen(true);
-                            }}
-                            className="bg-white text-indigo-600 rounded-full p-1 shadow-sm hover:bg-indigo-100 relative z-10 transition-colors"
-                          >
-                          <Plus size={14} />
-                          </button>
-                      )}
-                    </div>
-                    {recipeName ? (
-                      <div className="mt-2">
-                          <span className="text-sm font-medium text-indigo-900 line-clamp-2 leading-tight">{recipeName}</span>
-                          <div className="mt-1 flex items-center gap-1 text-[10px] text-indigo-500">
-                            <Check size={10} /> List added
-                          </div>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-indigo-300 mt-2 italic">Nothing planned</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+               return (
+                 <div key={offset} className="min-w-[130px] bg-indigo-50 p-3 rounded-xl flex flex-col justify-between h-28 relative group transition-transform hover:scale-[1.02]">
+                   <div className="flex justify-between items-start">
+                     <span className="text-xs font-bold text-indigo-400 uppercase">{dayName}</span>
+                     {plannedMeal ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMeal(plannedMeal.id);
+                          }}
+                          className="bg-white text-red-400 rounded-full p-1 shadow-sm hover:bg-red-50 hover:text-red-600 relative z-10 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                     ) : (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPlanningDayOffset(offset);
+                            setIsSelectRecipeOpen(true);
+                          }}
+                          className="bg-white text-indigo-600 rounded-full p-1 shadow-sm hover:bg-indigo-100 relative z-10 transition-colors"
+                        >
+                         <Plus size={14} />
+                        </button>
+                     )}
+                   </div>
+                   {recipeName ? (
+                     <div className="mt-2">
+                        <span className="text-sm font-medium text-indigo-900 line-clamp-2 leading-tight">{recipeName}</span>
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-indigo-500">
+                          <Check size={10} /> List added
+                        </div>
+                     </div>
+                   ) : (
+                     <span className="text-xs text-indigo-300 mt-2 italic">Nothing planned</span>
+                   )}
+                 </div>
+               );
+            })}
+          </div>
+        </section>
 
-          <section className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-2xl shadow-lg text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4">
-              <Award size={100} />
-            </div>
-            <h2 className="text-2xl font-bold mb-1">My Year in Groceries</h2>
-            <p className="text-purple-200 text-sm mb-6">Your culinary journey highlights</p>
-            <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
-                  <p className="text-xs text-purple-200">Total Items</p>
-                  <p className="text-2xl font-bold">{totalItems}</p>
-                </div>
-                <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
-                  <p className="text-xs text-purple-200">Top Category</p>
-                  <p className="text-lg font-bold truncate">{topCategory ? DEFAULT_CATEGORIES.find(c => c.id === topCategory[0])?.name || topCategory[0] : '-'}</p>
-                </div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-4 text-purple-200 text-xs font-semibold uppercase tracking-wider">
-                    <Trophy size={14} className="text-yellow-400" /> Favorite Recipes
-                </div>
-                <div className="flex justify-center items-end gap-2 px-2 h-32">
-                    <PodiumStep rank={2} recipe={topRecipes[1]} height="h-16" color="bg-purple-300/30" textColor="text-purple-100" />
-                    <PodiumStep rank={1} recipe={topRecipes[0]} height="h-24" color="bg-yellow-400/40" textColor="text-yellow-100" />
-                    <PodiumStep rank={3} recipe={topRecipes[2]} height="h-10" color="bg-indigo-300/30" textColor="text-indigo-100" />
-                </div>
-            </div>
-          </section>
+        <section className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-2xl shadow-lg text-white relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4">
+             <Award size={100} />
+           </div>
+           <h2 className="text-2xl font-bold mb-1">My Year in Groceries</h2>
+           <p className="text-purple-200 text-sm mb-6">Your culinary journey highlights</p>
+           <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
+                <p className="text-xs text-purple-200">Total Items</p>
+                <p className="text-2xl font-bold">{totalItems}</p>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
+                 <p className="text-xs text-purple-200">Top Category</p>
+                 <p className="text-lg font-bold truncate">{topCategory ? DEFAULT_CATEGORIES.find(c => c.id === topCategory[0])?.name || topCategory[0] : '-'}</p>
+              </div>
+           </div>
+           <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-4 text-purple-200 text-xs font-semibold uppercase tracking-wider">
+                  <Trophy size={14} className="text-yellow-400" /> Favorite Recipes
+              </div>
+              <div className="flex justify-center items-end gap-2 px-2 h-32">
+                  <PodiumStep rank={2} recipe={topRecipes[1]} height="h-16" color="bg-purple-300/30" textColor="text-purple-100" />
+                  <PodiumStep rank={1} recipe={topRecipes[0]} height="h-24" color="bg-yellow-400/40" textColor="text-yellow-100" />
+                  <PodiumStep rank={3} recipe={topRecipes[2]} height="h-10" color="bg-indigo-300/30" textColor="text-indigo-100" />
+              </div>
+           </div>
+        </section>
 
-          <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-            <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <PieChart size={18} /> Category Breakdown
-            </h2>
-            <div className="space-y-3">
-              {Object.entries(categoryCounts).map(([catId, count]) => {
-                const cat = DEFAULT_CATEGORIES.find(c => c.id === catId);
-                const name = cat ? cat.name : catId;
-                const colorClass = cat ? cat.color.split(' ')[0].replace('text', 'bg') : 'bg-indigo-500';
-                const percentage = Math.round((count / totalItems) * 100);
-                return (
-                  <div key={catId}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600 capitalize">{name}</span>
-                      <span className="font-medium">{count} items ({percentage}%)</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div className={`h-full ${colorClass}`} style={{ width: `${percentage}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-              {totalItems === 0 && <p className="text-gray-400 text-sm text-center">Start shopping to see analytics!</p>}
-            </div>
-          </section>
-        </div>
+        <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+            <PieChart size={18} /> Category Breakdown
+          </h2>
+          <div className="space-y-3">
+             {Object.entries(categoryCounts).map(([catId, count]) => {
+               const cat = DEFAULT_CATEGORIES.find(c => c.id === catId);
+               const name = cat ? cat.name : catId;
+               const colorClass = cat ? cat.color.split(' ')[0].replace('text', 'bg') : 'bg-indigo-500';
+               const percentage = Math.round((count / totalItems) * 100);
+               return (
+                 <div key={catId}>
+                   <div className="flex justify-between text-sm mb-1">
+                     <span className="text-gray-600 capitalize">{name}</span>
+                     <span className="font-medium">{count} items ({percentage}%)</span>
+                   </div>
+                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                     <div className={`h-full ${colorClass}`} style={{ width: `${percentage}%` }} />
+                   </div>
+                 </div>
+               )
+             })}
+             {totalItems === 0 && <p className="text-gray-400 text-sm text-center">Start shopping to see analytics!</p>}
+          </div>
+        </section>
       </div>
     );
   };
@@ -782,10 +802,32 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-pulse flex flex-col items-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="animate-pulse flex flex-col items-center max-w-xs text-center">
           <ChefHat size={48} className="text-indigo-600 mb-4" />
-          <p className="text-gray-500 font-medium">Loading your kitchen...</p>
+          
+          {/* Display auth error if one exists, otherwise show loading */}
+          {authError ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-center gap-2 text-red-500 font-bold">
+                <AlertCircle size={20} />
+                <span>Connection Issue</span>
+              </div>
+              <p className="text-gray-600 text-xs">{authError}</p>
+              <div className="bg-yellow-50 text-yellow-800 text-[10px] p-2 rounded-lg mt-2 text-left">
+                <strong>Vercel Setup:</strong> Please ensure your Firebase keys are set in your project environment variables or in the App.jsx file.
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-gray-500 font-medium">Loading your kitchen...</p>
+              {isLoadingLong && (
+                <p className="text-xs text-gray-400 animate-fade-in">
+                  Taking longer than usual... Check your internet or config.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -799,6 +841,7 @@ export default function App() {
              padding-bottom: env(safe-area-inset-bottom);
           }
         }
+        /* Custom scrollbar hiding */
         .scrollbar-hide::-webkit-scrollbar {
             display: none;
         }
@@ -806,21 +849,31 @@ export default function App() {
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #d1d5db;
+          border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
       `}</style>
-      <div className="min-h-screen bg-gray-100 font-sans text-gray-900 pb-safe flex justify-center items-center">
-        {/* Mobile Device Simulation Container - Fixed Height for Scrolling */}
-        <div className="w-full max-w-md bg-white shadow-2xl relative h-[95vh] sm:h-[850px] sm:rounded-[3rem] sm:border-[8px] sm:border-gray-800 overflow-hidden flex flex-col">
+      {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
+      <div className="fixed inset-0 w-full h-[100dvh] bg-gray-100 font-sans text-gray-900 flex justify-center items-center">
+        {/* Mobile Device Simulation/Actual Container */}
+        <div className="w-full max-w-md h-full bg-white shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-gray-800">
           
-          {/* Status Bar for Aesthetic */}
-          <div className="h-6 bg-white w-full shrink-0 sm:block hidden"></div>
-
-          <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative">
+          {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
+          <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
             {activeTab === 'shopping' && <ShoppingListView />}
             {activeTab === 'recipes' && <RecipesView />}
             {activeTab === 'history' && <HistoryView />}
             {activeTab === 'analytics' && <AnalyticsView />}
           </main>
 
+          {/* Fixed Navigation Bar */}
           <nav className="absolute bottom-0 left-0 right-0 z-50">
             <div className="bg-white/95 backdrop-blur-2xl border-t border-slate-200 pb-safe transition-all shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
               <div className="flex justify-around items-center h-20 px-2 pb-2">
