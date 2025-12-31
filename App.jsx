@@ -17,8 +17,7 @@ import {
   Trophy,
   Edit2,
   Save,
-  Search,
-  AlertCircle
+  Search
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -41,16 +40,18 @@ import {
 } from 'firebase/firestore';
 
 // --- Firebase Configuration ---
-// Wrapped in try/catch to prevent white-screen crashes if config is missing
-let firebaseConfig;
-try {
-  // In the preview environment, this is injected.
-  // In a real deployment, this throws ReferenceError, and we fall back to dummy.
-  firebaseConfig = JSON.parse(__firebase_config);
-} catch (e) {
-  // Fallback config. We detect this specific API key later to show a setup screen.
-  firebaseConfig = { apiKey: "dummy-key-for-setup", projectId: "dummy-project" }; 
-}
+// This check allows the app to work automatically in the preview.
+// For Vercel/GitHub: Replace the object in the 'else' block with your actual config.
+const firebaseConfig = typeof __firebase_config !== 'undefined' 
+  ? JSON.parse(__firebase_config) 
+  : { 
+      apiKey: "YOUR_API_KEY", 
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
+    };
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -231,7 +232,6 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [authError, setAuthError] = useState(null);
   const [activeTab, setActiveTab] = useState('shopping'); 
   
   // Data State
@@ -260,61 +260,23 @@ export default function App() {
   // --- Auth & Data Sync ---
 
   useEffect(() => {
-    let mounted = true;
-
-    // Safety timeout: If loading takes more than 5 seconds, assume failure
-    const loadingTimeout = setTimeout(() => {
-      if (mounted && !user && !authError) {
-        setAuthError("Loading timed out. Check connection.");
-      }
-    }, 5000);
-
+    // Restored simple, reliable auth logic
     const initAuth = async () => {
-      // IMMEDIATE CHECK: If we are running with dummy config, fail fast.
-      // This prevents the app from trying to contact Firebase with bad keys and hanging.
-      if (firebaseConfig.apiKey === "dummy-key-for-setup") {
-        if (mounted) {
-          setAuthError("SETUP REQUIRED: Missing Firebase Configuration.");
-        }
-        return; 
-      }
-
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
           await signInAnonymously(auth);
         }
-      } catch (e) {
-        console.error("Auth error:", e);
-        // Fallback to anonymous auth if custom token fails (e.g. stale token)
-        if (typeof __initial_auth_token !== 'undefined') {
-             try {
-               await signInAnonymously(auth);
-             } catch (anonError) {
-               if(mounted) setAuthError("Failed to sign in. Please refresh.");
-             }
-        } else {
-             if(mounted) setAuthError(e.message);
-        }
+      } catch (error) {
+        console.error("Auth failed:", error);
       }
     };
-
     initAuth();
 
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (mounted) {
-        setUser(u);
-        if (u) setAuthError(null);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      clearTimeout(loadingTimeout);
-      unsubscribe();
-    };
-  }, [user, authError]); // added user/authError deps to prevent stale closures, though [] is std
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -819,34 +781,6 @@ export default function App() {
   };
 
   // --- Render ---
-  
-  // Error View for Missing Configuration
-  if (authError) {
-    return (
-       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-lg border border-red-100 text-center">
-           <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto mb-4">
-              <AlertCircle size={32} />
-           </div>
-           <h2 className="text-xl font-bold text-gray-900 mb-2">Connection Issue</h2>
-           <p className="text-gray-600 mb-6">{authError}</p>
-           
-           {authError.includes("SETUP REQUIRED") ? (
-             <div className="text-left bg-gray-50 p-4 rounded-lg text-xs text-gray-500 mb-6">
-               <strong>How to fix:</strong><br/>
-               1. Go to Firebase Console &gt; Project Settings.<br/>
-               2. Copy your web app's `firebaseConfig` object.<br/>
-               3. Paste it into the `App.jsx` file, replacing the `JSON.parse(__firebase_config)` or the dummy fallback block.
-             </div>
-           ) : (
-             <button onClick={() => window.location.reload()} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-colors">
-               Retry Connection
-             </button>
-           )}
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return (
