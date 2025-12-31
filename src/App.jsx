@@ -545,9 +545,9 @@ export default function App() {
     } catch(e) { console.error(e) }
   };
 
-  // --- Render Views ---
+  // --- Render Views (Converted to helper functions to prevent focus loss issues) ---
 
-  const ShoppingListView = () => (
+  const renderShoppingListView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
       <div className="flex justify-between items-center mb-4 sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
         <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
@@ -593,7 +593,7 @@ export default function App() {
     </div>
   );
 
-  const HistoryView = () => (
+  const renderHistoryView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
       <div className="sticky top-0 bg-white/80 backdrop-blur-md py-2 z-10 -mx-2 px-2">
          <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
@@ -628,7 +628,7 @@ export default function App() {
     </div>
   );
 
-  const RecipesView = () => (
+  const renderRecipesView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
       <div className="sticky top-0 bg-white/80 backdrop-blur-md z-10 -mx-2 px-2 pt-2 pb-3 border-b border-gray-100 shadow-sm">
         <div className="flex justify-between items-center mb-3">
@@ -641,7 +641,7 @@ export default function App() {
           </button>
         </div>
         
-        {/* Search Bar */}
+        {/* Search Bar - Fixed: Input maintains focus */}
         <div className="relative">
           <Search className="absolute left-3 top-3 text-gray-400" size={18} />
           <input 
@@ -693,7 +693,7 @@ export default function App() {
     </div>
   );
 
-  const AnalyticsView = () => {
+  const renderAnalyticsView = () => {
     const totalItems = historyList.length;
     const categoryCounts = historyList.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
@@ -888,10 +888,10 @@ export default function App() {
           
           {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
           <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
-            {activeTab === 'shopping' && <ShoppingListView />}
-            {activeTab === 'recipes' && <RecipesView />}
-            {activeTab === 'history' && <HistoryView />}
-            {activeTab === 'analytics' && <AnalyticsView />}
+            {activeTab === 'shopping' && renderShoppingListView()}
+            {activeTab === 'recipes' && renderRecipesView()}
+            {activeTab === 'history' && renderHistoryView()}
+            {activeTab === 'analytics' && renderAnalyticsView()}
           </main>
 
           {/* Fixed Navigation Bar */}
