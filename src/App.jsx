@@ -145,14 +145,21 @@ const PodiumStep = ({ rank, recipe, height, color, textColor }) => (
 const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(recipe.name);
-  const [editedIngredients, setEditedIngredients] = useState(recipe.ingredients.map(i => i.name).join('\n'));
+  
+  // Initialize with objects containing name and category
+  const [editedIngredients, setEditedIngredients] = useState(
+    recipe.ingredients.map(i => ({ 
+      name: i.name, 
+      category: i.category || 'other' 
+    }))
+  );
+  
   const [editedInstructions, setEditedInstructions] = useState(recipe.instructions || '');
 
   const handleSave = () => {
     const ingredientsList = editedIngredients
-      .split('\n')
-      .filter(l => l.trim().length > 0)
-      .map(l => ({ name: l.trim(), isDone: false }));
+      .filter(l => l.name.trim().length > 0)
+      .map(l => ({ name: l.name.trim(), category: l.category, isDone: false }));
       
     onUpdate(recipe.id, {
       name: editedName,
@@ -160,6 +167,21 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
       instructions: editedInstructions
     });
     setIsEditing(false);
+  };
+
+  const updateIngredient = (index, field, value) => {
+    const newIngredients = [...editedIngredients];
+    newIngredients[index] = { ...newIngredients[index], [field]: value };
+    setEditedIngredients(newIngredients);
+  };
+
+  const addIngredient = () => {
+    setEditedIngredients([...editedIngredients, { name: '', category: 'other' }]);
+  };
+
+  const removeIngredient = (index) => {
+    const newIngredients = editedIngredients.filter((_, i) => i !== index);
+    setEditedIngredients(newIngredients);
   };
 
   if (isEditing) {
@@ -174,14 +196,44 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
             className="w-full bg-gray-50 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-gray-800"
           />
         </div>
+        
         <div>
-          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Ingredients (one per line)</label>
-          <textarea 
-            value={editedIngredients} 
-            onChange={(e) => setEditedIngredients(e.target.value)} 
-            className="w-full bg-gray-50 p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none h-32 resize-none font-mono text-sm" 
-          />
+          <label className="block text-sm font-bold text-gray-500 uppercase mb-2">Ingredients</label>
+          <div className="space-y-2">
+            {editedIngredients.map((ing, index) => (
+              <div key={index} className="flex gap-2">
+                <input 
+                  type="text"
+                  value={ing.name}
+                  onChange={(e) => updateIngredient(index, 'name', e.target.value)}
+                  placeholder="Ingredient"
+                  className="flex-1 min-w-0 bg-gray-50 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                />
+                <select
+                  value={ing.category}
+                  onChange={(e) => updateIngredient(index, 'category', e.target.value)}
+                  className="w-24 sm:w-32 bg-gray-50 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                >
+                  <option value="other">Other</option>
+                  {DEFAULT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button 
+                  onClick={() => removeIngredient(index)}
+                  className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button 
+            onClick={addIngredient}
+            className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+          >
+            <Plus size={16} /> Add Ingredient
+          </button>
         </div>
+
         <div>
           <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Instructions</label>
           <textarea 
@@ -281,7 +333,8 @@ export default function App() {
   const [customCategoryName, setCustomCategoryName] = useState('');
   
   const [newRecipeName, setNewRecipeName] = useState('');
-  const [newRecipeIngredients, setNewRecipeIngredients] = useState(''); 
+  // Changed from string to array of objects
+  const [newRecipeIngredients, setNewRecipeIngredients] = useState([{ name: '', category: 'other' }]); 
   const [newRecipeInstructions, setNewRecipeInstructions] = useState('');
 
   // --- Auth & Data Sync ---
@@ -478,13 +531,32 @@ export default function App() {
     }
   };
 
+  // NEW: Helper for managing new recipe ingredient rows
+  const updateNewRecipeIngredient = (index, field, value) => {
+    const updated = [...newRecipeIngredients];
+    updated[index] = { ...updated[index], [field]: value };
+    setNewRecipeIngredients(updated);
+  };
+
+  const addNewRecipeIngredientRow = () => {
+    setNewRecipeIngredients([...newRecipeIngredients, { name: '', category: 'other' }]);
+  };
+
+  const removeNewRecipeIngredientRow = (index) => {
+    setNewRecipeIngredients(newRecipeIngredients.filter((_, i) => i !== index));
+  };
+
   const addRecipe = async () => {
     if (!newRecipeName.trim() || !user) return;
     
-    const ingredientsList = newRecipeIngredients.split('\n').filter(line => line.trim().length > 0).map(line => ({
-      name: line.trim(),
-      isDone: false 
-    }));
+    // Filter out empty rows and format
+    const ingredientsList = newRecipeIngredients
+      .filter(ing => ing.name.trim().length > 0)
+      .map(ing => ({
+        name: ing.name.trim(),
+        category: ing.category || 'other',
+        isDone: false 
+      }));
 
     try {
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'recipes'), {
@@ -495,7 +567,7 @@ export default function App() {
       });
       setIsAddRecipeOpen(false);
       setNewRecipeName('');
-      setNewRecipeIngredients('');
+      setNewRecipeIngredients([{ name: '', category: 'other' }]);
       setNewRecipeInstructions('');
     } catch (e) {
       console.error("Error adding recipe", e);
@@ -505,7 +577,8 @@ export default function App() {
   const addRecipeToShoppingList = async (recipe, showAlert = true) => {
     if (!user) return;
     const promises = recipe.ingredients.map(async (ing) => {
-      await addItem(ing.name, 'other');
+      // Use the category saved with the ingredient, or default to 'other'
+      await addItem(ing.name, ing.category || 'other');
     });
     await Promise.all(promises);
     if (showAlert) alert(`Added ingredients for ${recipe.name} to list!`);
@@ -990,10 +1063,45 @@ export default function App() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Recipe Name</label>
                 <input type="text" value={newRecipeName} onChange={(e) => setNewRecipeName(e.target.value)} placeholder="e.g. Spaghetti Carbonara" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
               </div>
+              
+              {/* New Dynamic Ingredient Inputs */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ingredients (one per line)</label>
-                <textarea value={newRecipeIngredients} onChange={(e) => setNewRecipeIngredients(e.target.value)} placeholder="Spaghetti&#10;Eggs&#10;Bacon&#10;Parmesan" rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
+                <label className="block text-sm font-medium text-gray-700 mb-2">Ingredients</label>
+                <div className="space-y-2">
+                  {newRecipeIngredients.map((ing, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input 
+                        type="text"
+                        value={ing.name}
+                        onChange={(e) => updateNewRecipeIngredient(index, 'name', e.target.value)}
+                        placeholder="Ingredient"
+                        className="flex-1 min-w-0 bg-gray-50 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                      />
+                      <select
+                        value={ing.category}
+                        onChange={(e) => updateNewRecipeIngredient(index, 'category', e.target.value)}
+                        className="w-24 sm:w-32 bg-gray-50 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                      >
+                        <option value="other">Other</option>
+                        {DEFAULT_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                      <button 
+                        onClick={() => removeNewRecipeIngredientRow(index)}
+                        className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={addNewRecipeIngredientRow}
+                  className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                >
+                  <Plus size={16} /> Add Ingredient
+                </button>
               </div>
+
                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
                 <textarea value={newRecipeInstructions} onChange={(e) => setNewRecipeInstructions(e.target.value)} placeholder="1. Boil pasta..." rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
@@ -1017,7 +1125,7 @@ export default function App() {
             <div className="space-y-3">
                <p className="text-sm text-gray-500">This will add the meal to your plan and ingredients to your list.</p>
                
-               {/* New Search Bar for Select Meal */}
+               {/* Search Bar for Select Meal */}
                <div className="relative mb-2">
                   <Search className="absolute left-3 top-3 text-gray-400" size={18} />
                   <input 
