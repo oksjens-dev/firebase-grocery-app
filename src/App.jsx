@@ -83,7 +83,8 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- Constants ---
 const DEFAULT_CATEGORIES = [
-  { id: 'veggies', name: 'Veggies & Fruits', color: 'bg-green-100 text-green-800' },
+  { id: 'veggies', name: 'Veggies', color: 'bg-green-100 text-green-800' },
+  { id: 'fruit', name: 'Fruit', color: 'bg-rose-100 text-rose-800' },
   { id: 'dairy', name: 'Dairy & Eggs', color: 'bg-yellow-100 text-yellow-800' },
   { id: 'meat', name: 'Meat & Fish', color: 'bg-red-100 text-red-800' },
   { id: 'pasta', name: 'Pasta & Rice', color: 'bg-orange-100 text-orange-800' },
@@ -145,15 +146,12 @@ const PodiumStep = ({ rank, recipe, height, color, textColor }) => (
 const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(recipe.name);
-  
-  // Initialize with objects containing name and category
   const [editedIngredients, setEditedIngredients] = useState(
     recipe.ingredients.map(i => ({ 
       name: i.name, 
       category: i.category || 'other' 
     }))
   );
-  
   const [editedInstructions, setEditedInstructions] = useState(recipe.instructions || '');
 
   const handleSave = () => {
@@ -322,25 +320,19 @@ export default function App() {
   const [isSelectRecipeOpen, setIsSelectRecipeOpen] = useState(false);
   const [planningDayOffset, setPlanningDayOffset] = useState(null);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
-  
-  // New State for Meal Selection Filter
   const [mealSearchTerm, setMealSearchTerm] = useState('');
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('other');
-  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
-  const [customCategoryName, setCustomCategoryName] = useState('');
   
   const [newRecipeName, setNewRecipeName] = useState('');
-  // Changed from string to array of objects
   const [newRecipeIngredients, setNewRecipeIngredients] = useState([{ name: '', category: 'other' }]); 
   const [newRecipeInstructions, setNewRecipeInstructions] = useState('');
 
   // --- Auth & Data Sync ---
 
   useEffect(() => {
-    // Show a helpful message if loading takes too long
     const timer = setTimeout(() => setIsLoadingLong(true), 4000);
 
     const initAuth = async () => {
@@ -426,26 +418,16 @@ export default function App() {
       .slice(0, 3);
   }, [mealPlan, recipes]);
 
+  const topItems = useMemo(() => {
+    return items
+      .filter(i => i.buyCount > 0)
+      .sort((a, b) => b.buyCount - a.buyCount)
+      .slice(0, 5);
+  }, [items]);
+
   const allCategories = useMemo(() => {
-    const customSet = new Set();
-    items.forEach(i => {
-      if (!DEFAULT_CATEGORIES.find(c => c.id === i.category)) {
-        customSet.add(i.category);
-      }
-    });
-
-    if (newItemCategory && !DEFAULT_CATEGORIES.find(c => c.id === newItemCategory)) {
-      customSet.add(newItemCategory);
-    }
-
-    const customCategories = Array.from(customSet).map(name => ({
-      id: name,
-      name: name,
-      color: 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-    }));
-
-    return [...DEFAULT_CATEGORIES, ...customCategories];
-  }, [items, newItemCategory]);
+    return DEFAULT_CATEGORIES;
+  }, []);
 
   // --- Actions ---
 
@@ -462,14 +444,6 @@ export default function App() {
       setNewItemName('');
     } catch (e) {
       console.error("Error adding item", e);
-    }
-  };
-
-  const createCustomCategory = () => {
-    if (customCategoryName.trim()) {
-      setNewItemCategory(customCategoryName.trim());
-      setIsCreatingCategory(false);
-      setCustomCategoryName('');
     }
   };
 
@@ -520,7 +494,6 @@ export default function App() {
     }
   };
 
-  // Fixed: explicitly deletes ONLY from 'meals' collection
   const deleteMeal = async (mealId) => {
     if (!user) return;
     if (!window.confirm("Remove this meal from the plan?")) return;
@@ -531,7 +504,6 @@ export default function App() {
     }
   };
 
-  // NEW: Helper for managing new recipe ingredient rows
   const updateNewRecipeIngredient = (index, field, value) => {
     const updated = [...newRecipeIngredients];
     updated[index] = { ...updated[index], [field]: value };
@@ -549,7 +521,6 @@ export default function App() {
   const addRecipe = async () => {
     if (!newRecipeName.trim() || !user) return;
     
-    // Filter out empty rows and format
     const ingredientsList = newRecipeIngredients
       .filter(ing => ing.name.trim().length > 0)
       .map(ing => ({
@@ -577,7 +548,6 @@ export default function App() {
   const addRecipeToShoppingList = async (recipe, showAlert = true) => {
     if (!user) return;
     const promises = recipe.ingredients.map(async (ing) => {
-      // Use the category saved with the ingredient, or default to 'other'
       await addItem(ing.name, ing.category || 'other');
     });
     await Promise.all(promises);
@@ -614,8 +584,12 @@ export default function App() {
         date: date.toISOString(),
       });
       
-      await addRecipeToShoppingList(recipe, false);
-      alert(`Planned ${recipe.name} for ${date.toLocaleDateString('en-US', {weekday: 'long'})} and added items to list!`);
+      // New: Ask for confirmation
+      if (window.confirm(`Do you want to add the ingredients for ${recipe.name} to your shopping list?`)) {
+        await addRecipeToShoppingList(recipe, false);
+      }
+      
+      alert(`Planned ${recipe.name} for ${date.toLocaleDateString('en-US', {weekday: 'long'})}!`);
     } catch(e) { console.error(e) }
   };
 
@@ -653,7 +627,7 @@ export default function App() {
                 placeholder="Search recipes..." 
                 value={recipeSearchTerm}
                 onChange={(e) => setRecipeSearchTerm(e.target.value)}
-                className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all"
+                className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
               />
             </div>
           </div>
@@ -676,7 +650,7 @@ export default function App() {
     }
   };
 
-  // --- Render Content Views (Headers Removed) ---
+  // --- Render Content Views ---
 
   const renderShoppingListView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
@@ -786,12 +760,10 @@ export default function App() {
   );
 
   const renderAnalyticsView = () => {
-    const totalItems = historyList.length;
     const categoryCounts = historyList.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
       return acc;
     }, {});
-    const topCategory = Object.entries(categoryCounts).sort((a,b) => b[1] - a[1])[0];
 
     return (
       <div className="space-y-6 pb-24 animate-in fade-in zoom-in-95 duration-300">
@@ -826,7 +798,7 @@ export default function App() {
                           onClick={(e) => {
                             e.stopPropagation();
                             setPlanningDayOffset(offset);
-                            setMealSearchTerm(''); // Reset search when opening
+                            setMealSearchTerm(''); 
                             setIsSelectRecipeOpen(true);
                           }}
                           className="bg-white text-indigo-600 rounded-full p-1 shadow-sm hover:bg-indigo-100 relative z-10 transition-colors"
@@ -857,16 +829,20 @@ export default function App() {
            </div>
            <h2 className="text-2xl font-bold mb-1">My Year in Groceries</h2>
            <p className="text-purple-200 text-sm mb-6">Your culinary journey highlights</p>
-           <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
-                <p className="text-xs text-purple-200">Total Items</p>
-                <p className="text-2xl font-bold">{totalItems}</p>
-              </div>
-              <div className="bg-white/10 backdrop-blur-sm p-3 rounded-lg">
-                 <p className="text-xs text-purple-200">Top Category</p>
-                 <p className="text-lg font-bold truncate">{topCategory ? DEFAULT_CATEGORIES.find(c => c.id === topCategory[0])?.name || topCategory[0] : '-'}</p>
-              </div>
+           
+           <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl mb-6">
+              <p className="text-xs text-purple-200 uppercase font-bold mb-2">My Top Items</p>
+              <ul className="space-y-2">
+                {topItems.map((item, idx) => (
+                  <li key={item.id} className="flex justify-between items-center text-sm border-b border-white/10 pb-1 last:border-0 last:pb-0">
+                    <span className="text-white/90 font-medium">{idx + 1}. {item.name}</span>
+                    <span className="text-purple-200 bg-white/10 px-2 py-0.5 rounded-full text-xs">{item.buyCount}x</span>
+                  </li>
+                ))}
+                {topItems.length === 0 && <li className="text-purple-300 text-xs italic">No items bought yet.</li>}
+              </ul>
            </div>
+
            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4">
               <div className="flex items-center gap-2 mb-4 text-purple-200 text-xs font-semibold uppercase tracking-wider">
                   <Trophy size={14} className="text-yellow-400" /> Favorite Recipes
@@ -888,7 +864,7 @@ export default function App() {
                const cat = DEFAULT_CATEGORIES.find(c => c.id === catId);
                const name = cat ? cat.name : catId;
                const colorClass = cat ? cat.color.split(' ')[0].replace('text', 'bg') : 'bg-indigo-500';
-               const percentage = Math.round((count / totalItems) * 100);
+               const percentage = Math.round((count / historyList.length) * 100);
                return (
                  <div key={catId}>
                    <div className="flex justify-between text-sm mb-1">
@@ -901,7 +877,7 @@ export default function App() {
                  </div>
                )
              })}
-             {totalItems === 0 && <p className="text-gray-400 text-sm text-center">Start shopping to see analytics!</p>}
+             {historyList.length === 0 && <p className="text-gray-400 text-sm text-center">Start shopping to see analytics!</p>}
           </div>
         </section>
       </div>
@@ -916,7 +892,6 @@ export default function App() {
         <div className="animate-pulse flex flex-col items-center max-w-xs text-center">
           <ChefHat size={48} className="text-indigo-600 mb-4" />
           
-          {/* Display auth error if one exists, otherwise show loading */}
           {authError ? (
             <div className="space-y-2">
               <div className="flex items-center justify-center gap-2 text-red-500 font-bold">
@@ -1023,35 +998,24 @@ export default function App() {
             </div>
           </nav>
 
-          <Modal isOpen={isAddItemOpen} onClose={() => { setIsAddItemOpen(false); setIsCreatingCategory(false); }} title="Add Item">
+          <Modal isOpen={isAddItemOpen} onClose={() => { setIsAddItemOpen(false); }} title="Add Item">
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-                <input autoFocus type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="e.g. Milk" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" onKeyDown={(e) => e.key === 'Enter' && addItem(newItemName, newItemCategory)} />
+                <input autoFocus type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="e.g. Milk" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-base" onKeyDown={(e) => e.key === 'Enter' && addItem(newItemName, newItemCategory)} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                {isCreatingCategory ? (
-                  <div className="flex gap-2 animate-in fade-in zoom-in-95">
-                    <input type="text" autoFocus value={customCategoryName} onChange={(e) => setCustomCategoryName(e.target.value)} placeholder="New category name..." className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none text-sm" onKeyDown={(e) => e.key === 'Enter' && createCustomCategory()} />
-                    <button onClick={createCustomCategory} className="bg-indigo-600 text-white px-3 py-2 rounded-lg text-sm font-medium">Save</button>
-                    <button onClick={() => setIsCreatingCategory(false)} className="bg-gray-100 text-gray-600 px-3 py-2 rounded-lg text-sm font-medium">Cancel</button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {allCategories.map(cat => (
-                      <button key={cat.id} onClick={() => setNewItemCategory(cat.id)} className={`p-2 rounded-lg text-sm text-left transition-all ${newItemCategory === cat.id ? 'ring-2 ring-indigo-500 bg-gray-50' : 'bg-white border border-gray-200'}`}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${cat.color.split(' ')[0].replace('text', 'bg')}`}></div>
-                          <span className="truncate">{cat.name}</span>
-                        </div>
-                      </button>
-                    ))}
-                    <button onClick={() => setIsCreatingCategory(true)} className="p-2 rounded-lg text-sm text-center border border-dashed border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
-                      <Plus size={14} /> New Category
+                <div className="grid grid-cols-2 gap-2">
+                  {allCategories.map(cat => (
+                    <button key={cat.id} onClick={() => setNewItemCategory(cat.id)} className={`p-2 rounded-lg text-sm text-left transition-all ${newItemCategory === cat.id ? 'ring-2 ring-indigo-500 bg-gray-50' : 'bg-white border border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${cat.color.split(' ')[0].replace('text', 'bg')}`}></div>
+                        <span className="truncate">{cat.name}</span>
+                      </div>
                     </button>
-                  </div>
-                )}
+                  ))}
+                </div>
               </div>
               <button onClick={() => { addItem(newItemName, newItemCategory); setIsAddItemOpen(false); }} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors mt-2">Add to List</button>
             </div>
@@ -1061,7 +1025,7 @@ export default function App() {
              <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Recipe Name</label>
-                <input type="text" value={newRecipeName} onChange={(e) => setNewRecipeName(e.target.value)} placeholder="e.g. Spaghetti Carbonara" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
+                <input type="text" value={newRecipeName} onChange={(e) => setNewRecipeName(e.target.value)} placeholder="e.g. Spaghetti Carbonara" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-base" />
               </div>
               
               {/* New Dynamic Ingredient Inputs */}
@@ -1075,7 +1039,7 @@ export default function App() {
                         value={ing.name}
                         onChange={(e) => updateNewRecipeIngredient(index, 'name', e.target.value)}
                         placeholder="Ingredient"
-                        className="flex-1 min-w-0 bg-gray-50 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                        className="flex-1 min-w-0 bg-gray-50 p-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-base"
                       />
                       <select
                         value={ing.category}
@@ -1104,7 +1068,7 @@ export default function App() {
 
                <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
-                <textarea value={newRecipeInstructions} onChange={(e) => setNewRecipeInstructions(e.target.value)} placeholder="1. Boil pasta..." rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
+                <textarea value={newRecipeInstructions} onChange={(e) => setNewRecipeInstructions(e.target.value)} placeholder="1. Boil pasta..." rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-base" />
               </div>
               <button onClick={addRecipe} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Save Recipe</button>
             </div>
@@ -1134,7 +1098,7 @@ export default function App() {
                     placeholder="Search available recipes..." 
                     value={mealSearchTerm}
                     onChange={(e) => setMealSearchTerm(e.target.value)}
-                    className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all"
+                    className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
                   />
                </div>
 
