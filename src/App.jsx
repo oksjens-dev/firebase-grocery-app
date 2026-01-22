@@ -321,6 +321,7 @@ export default function App() {
   const [planningDayOffset, setPlanningDayOffset] = useState(null);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
   const [mealSearchTerm, setMealSearchTerm] = useState('');
+  const [historySearchTerm, setHistorySearchTerm] = useState(''); // New history search state
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -395,6 +396,12 @@ export default function App() {
   const shoppingList = useMemo(() => items.filter(i => !i.isBought).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds), [items]);
   const historyList = useMemo(() => items.filter(i => i.isBought).sort((a,b) => b.boughtAt?.seconds - a.boughtAt?.seconds), [items]);
   
+  // Filtered history list based on search term
+  const filteredHistory = useMemo(() => {
+    if (!historySearchTerm) return historyList;
+    return historyList.filter(item => item.name.toLowerCase().includes(historySearchTerm.toLowerCase()));
+  }, [historyList, historySearchTerm]);
+
   const filteredRecipes = useMemo(() => {
     if (!recipeSearchTerm) return recipes;
     return recipes.filter(r => r.name.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
@@ -584,7 +591,6 @@ export default function App() {
         date: date.toISOString(),
       });
       
-      // New: Ask for confirmation
       if (window.confirm(`Do you want to add the ingredients for ${recipe.name} to your shopping list?`)) {
         await addRecipeToShoppingList(recipe, false);
       }
@@ -634,9 +640,22 @@ export default function App() {
         );
       case 'history':
         return (
-          <div className="py-2">
-            <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
-            <p className="text-sm text-gray-500">Tap + to add back to shopping list.</p>
+          <div className="py-2 space-y-3">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
+              <p className="text-sm text-gray-500 mt-1">Tap + to add back to shopping list.</p>
+            </div>
+            {/* Added Search Bar for History */}
+            <div className="relative">
+              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search history..." 
+                value={historySearchTerm}
+                onChange={(e) => setHistorySearchTerm(e.target.value)}
+                className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+              />
+            </div>
           </div>
         );
       case 'analytics':
@@ -690,31 +709,39 @@ export default function App() {
 
   const renderHistoryView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="space-y-2">
-        {historyList.map(item => (
-          <div
-            key={item.id}
-            className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between opacity-75 hover:opacity-100 transition-all"
-          >
-            <div className="flex items-center gap-3 flex-1">
-              <div className="line-through text-gray-500 font-medium">{item.name}</div>
-              <CategoryBadge categoryId={item.category} />
-            </div>
-            <button
-              onClick={() => addHistoryItemBack(item)}
-              className="text-indigo-600 bg-indigo-50 p-2 rounded-full hover:bg-indigo-100 transition-colors active:scale-95"
-            >
-              <Plus size={18} />
-            </button>
-          </div>
-        ))}
-        {historyList.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
-            <History size={48} className="mx-auto mb-2 opacity-50" />
-            <p>No history yet.</p>
-          </div>
-        )}
-      </div>
+      {/* Display Filtered History */}
+      {filteredHistory.length === 0 ? (
+         <div className="text-center py-12 text-gray-400">
+            {historyList.length === 0 ? (
+                <>
+                    <History size={48} className="mx-auto mb-2 opacity-50" />
+                    <p>No history yet.</p>
+                </>
+            ) : (
+                <p>No items found.</p>
+            )}
+         </div>
+      ) : (
+        <div className="space-y-2">
+            {filteredHistory.map(item => (
+                <div
+                    key={item.id}
+                    className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between opacity-75 hover:opacity-100 transition-all"
+                >
+                    <div className="flex items-center gap-3 flex-1">
+                    <div className="line-through text-gray-500 font-medium">{item.name}</div>
+                    <CategoryBadge categoryId={item.category} />
+                    </div>
+                    <button
+                    onClick={() => addHistoryItemBack(item)}
+                    className="text-indigo-600 bg-indigo-50 p-2 rounded-full hover:bg-indigo-100 transition-colors active:scale-95"
+                    >
+                    <Plus size={18} />
+                    </button>
+                </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 
