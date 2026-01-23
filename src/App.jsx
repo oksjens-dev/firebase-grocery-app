@@ -319,9 +319,12 @@ export default function App() {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [isSelectRecipeOpen, setIsSelectRecipeOpen] = useState(false);
   const [planningDayOffset, setPlanningDayOffset] = useState(null);
+  
+  // Search States
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
   const [mealSearchTerm, setMealSearchTerm] = useState('');
   const [historySearchTerm, setHistorySearchTerm] = useState('');
+  const [shoppingSearchTerm, setShoppingSearchTerm] = useState(''); // New shopping search state
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -396,7 +399,12 @@ export default function App() {
   const shoppingList = useMemo(() => items.filter(i => !i.isBought).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds), [items]);
   const historyList = useMemo(() => items.filter(i => i.isBought).sort((a,b) => b.boughtAt?.seconds - a.boughtAt?.seconds), [items]);
   
-  // Filtered history list based on search term
+  // Filtered lists
+  const filteredShoppingList = useMemo(() => {
+    if (!shoppingSearchTerm) return shoppingList;
+    return shoppingList.filter(item => item.name.toLowerCase().includes(shoppingSearchTerm.toLowerCase()));
+  }, [shoppingList, shoppingSearchTerm]);
+
   const filteredHistory = useMemo(() => {
     if (!historySearchTerm) return historyList;
     return historyList.filter(item => item.name.toLowerCase().includes(historySearchTerm.toLowerCase()));
@@ -604,21 +612,48 @@ export default function App() {
     switch (activeTab) {
       case 'shopping':
         return (
-          <div className="flex justify-between items-center py-2">
-            <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
-            <button
-              onClick={() => setIsAddItemOpen(true)}
-              className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
-            >
-              <Plus size={24} />
-            </button>
+          <div className="py-2 space-y-3">
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
+                <p className="text-sm text-gray-500 mt-1">Tap + to add a new item to the shopping list.</p>
+              </div>
+              <button
+                onClick={() => setIsAddItemOpen(true)}
+                className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
+              >
+                <Plus size={24} />
+              </button>
+            </div>
+            {/* Added Search Bar for Shopping List */}
+            <div className="relative">
+              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search items..." 
+                value={shoppingSearchTerm}
+                onChange={(e) => setShoppingSearchTerm(e.target.value)}
+                className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+              />
+              {shoppingSearchTerm && (
+                <button 
+                  onClick={() => setShoppingSearchTerm('')} 
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
           </div>
         );
       case 'recipes':
         return (
           <div className="py-2 space-y-3">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
+                <p className="text-sm text-gray-500 mt-1">Tap + to add a new recipe.</p>
+              </div>
               <button
                 onClick={() => setIsAddRecipeOpen(true)}
                 className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
@@ -653,7 +688,6 @@ export default function App() {
               <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
               <p className="text-sm text-gray-500 mt-1">Tap + to add back to shopping list.</p>
             </div>
-            {/* Added Search Bar for History */}
             <div className="relative">
               <Search className="absolute left-3 top-3 text-gray-400" size={18} />
               <input 
@@ -678,6 +712,7 @@ export default function App() {
         return (
           <div className="py-2">
             <h1 className="text-2xl font-bold text-gray-800">Analytics & Plan</h1>
+            <p className="text-sm text-gray-500 mt-1">Tap + for daily meal planning and enjoy the analytics!</p>
           </div>
         );
       default:
@@ -689,15 +724,22 @@ export default function App() {
 
   const renderShoppingListView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      {shoppingList.length === 0 ? (
+      {/* Display Filtered Shopping List */}
+      {filteredShoppingList.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
-          <p>Your list is empty.</p>
-          <p className="text-sm">Add items or check your recipes!</p>
+          {shoppingList.length === 0 ? (
+            <>
+              <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
+              <p>Your list is empty.</p>
+              <p className="text-sm">Add items or check your recipes!</p>
+            </>
+          ) : (
+            <p>No items found.</p>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
-          {shoppingList.map(item => (
+          {filteredShoppingList.map(item => (
             <div
               key={item.id}
               className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between group transition-all hover:shadow-md"
@@ -725,7 +767,6 @@ export default function App() {
 
   const renderHistoryView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      {/* Display Filtered History */}
       {filteredHistory.length === 0 ? (
          <div className="text-center py-12 text-gray-400">
             {historyList.length === 0 ? (
