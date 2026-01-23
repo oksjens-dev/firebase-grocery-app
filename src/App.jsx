@@ -321,7 +321,7 @@ export default function App() {
   const [planningDayOffset, setPlanningDayOffset] = useState(null);
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
   const [mealSearchTerm, setMealSearchTerm] = useState('');
-  const [historySearchTerm, setHistorySearchTerm] = useState(''); // New history search state
+  const [historySearchTerm, setHistorySearchTerm] = useState('');
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -633,8 +633,16 @@ export default function App() {
                 placeholder="Search recipes..." 
                 value={recipeSearchTerm}
                 onChange={(e) => setRecipeSearchTerm(e.target.value)}
-                className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+                className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
               />
+              {recipeSearchTerm && (
+                <button 
+                  onClick={() => setRecipeSearchTerm('')} 
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={18} />
+                </button>
+              )}
             </div>
           </div>
         );
@@ -653,8 +661,16 @@ export default function App() {
                 placeholder="Search history..." 
                 value={historySearchTerm}
                 onChange={(e) => setHistorySearchTerm(e.target.value)}
-                className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+                className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
               />
+              {historySearchTerm && (
+                <button 
+                  onClick={() => setHistorySearchTerm('')} 
+                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={18} />
+                </button>
+              )}
             </div>
           </div>
         );
@@ -1125,8 +1141,16 @@ export default function App() {
                     placeholder="Search available recipes..." 
                     value={mealSearchTerm}
                     onChange={(e) => setMealSearchTerm(e.target.value)}
-                    className="w-full bg-gray-50 pl-10 pr-4 py-2.5 rounded-xl text-sm font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+                    className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
                   />
+                  {mealSearchTerm && (
+                    <button 
+                      onClick={() => setMealSearchTerm('')} 
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
                </div>
 
                {/* Filtered List Logic */}
