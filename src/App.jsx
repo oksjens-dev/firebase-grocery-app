@@ -324,7 +324,8 @@ export default function App() {
   const [recipeSearchTerm, setRecipeSearchTerm] = useState('');
   const [mealSearchTerm, setMealSearchTerm] = useState('');
   const [historySearchTerm, setHistorySearchTerm] = useState('');
-  const [shoppingSearchTerm, setShoppingSearchTerm] = useState(''); // New shopping search state
+  const [shoppingSearchTerm, setShoppingSearchTerm] = useState('');
+  const [addItemSearchTerm, setAddItemSearchTerm] = useState(''); // New search state for Add Item modal
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -414,6 +415,12 @@ export default function App() {
     if (!recipeSearchTerm) return recipes;
     return recipes.filter(r => r.name.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
   }, [recipes, recipeSearchTerm]);
+
+  // Filtered history for Add Item Modal
+  const filteredAddItemHistory = useMemo(() => {
+    if (!addItemSearchTerm) return [];
+    return historyList.filter(item => item.name.toLowerCase().includes(addItemSearchTerm.toLowerCase()));
+  }, [historyList, addItemSearchTerm]);
 
   const topRecipes = useMemo(() => {
     const counts = {};
@@ -1082,26 +1089,80 @@ export default function App() {
             </div>
           </nav>
 
-          <Modal isOpen={isAddItemOpen} onClose={() => { setIsAddItemOpen(false); }} title="Add Item">
-            <div className="space-y-4">
+          <Modal isOpen={isAddItemOpen} onClose={() => { setIsAddItemOpen(false); setAddItemSearchTerm(''); }} title="Add Item">
+            <div className="space-y-6">
+              {/* Section: Search Recent */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-                <input autoFocus type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="e.g. Milk" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-base" onKeyDown={(e) => e.key === 'Enter' && addItem(newItemName, newItemCategory)} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {allCategories.map(cat => (
-                    <button key={cat.id} onClick={() => setNewItemCategory(cat.id)} className={`p-2 rounded-lg text-sm text-left transition-all ${newItemCategory === cat.id ? 'ring-2 ring-indigo-500 bg-gray-50' : 'bg-white border border-gray-200'}`}>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${cat.color.split(' ')[0].replace('text', 'bg')}`}></div>
-                        <span className="truncate">{cat.name}</span>
-                      </div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">From Recently Bought</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Search recent items..."
+                    value={addItemSearchTerm}
+                    onChange={(e) => setAddItemSearchTerm(e.target.value)}
+                    className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+                  />
+                  {addItemSearchTerm && (
+                    <button
+                      onClick={() => setAddItemSearchTerm('')}
+                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={18} />
                     </button>
-                  ))}
+                  )}
                 </div>
+                
+                {/* Suggestions List */}
+                {addItemSearchTerm && (
+                  <div className="mt-2 max-h-40 overflow-y-auto space-y-1 custom-scrollbar border border-gray-100 rounded-xl p-1">
+                    {filteredAddItemHistory.length === 0 ? (
+                       <p className="text-xs text-gray-400 text-center py-2">No matching recent items.</p>
+                    ) : (
+                       filteredAddItemHistory.map(item => (
+                         <button
+                           key={item.id}
+                           onClick={() => { addHistoryItemBack(item); setIsAddItemOpen(false); setAddItemSearchTerm(''); }}
+                           className="flex items-center justify-between w-full p-2 hover:bg-gray-50 rounded-lg transition-colors group"
+                         >
+                           <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700 text-left">{item.name}</span>
+                           <Plus size={16} className="text-gray-300 group-hover:text-indigo-500" />
+                         </button>
+                       ))
+                    )}
+                  </div>
+                )}
               </div>
-              <button onClick={() => { addItem(newItemName, newItemCategory); setIsAddItemOpen(false); }} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors mt-2">Add to List</button>
+
+              {/* Divider */}
+              <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-gray-200"></div>
+                  <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase font-semibold">Or Create New</span>
+                  <div className="flex-grow border-t border-gray-200"></div>
+              </div>
+
+              {/* Section: Create New */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                  {/* Removed autoFocus to prevent conflict/jumpiness */}
+                  <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="e.g. Milk" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-base" onKeyDown={(e) => e.key === 'Enter' && addItem(newItemName, newItemCategory)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {allCategories.map(cat => (
+                      <button key={cat.id} onClick={() => setNewItemCategory(cat.id)} className={`p-2 rounded-lg text-sm text-left transition-all ${newItemCategory === cat.id ? 'ring-2 ring-indigo-500 bg-gray-50' : 'bg-white border border-gray-200'}`}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${cat.color.split(' ')[0].replace('text', 'bg')}`}></div>
+                          <span className="truncate">{cat.name}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => { addItem(newItemName, newItemCategory); setIsAddItemOpen(false); }} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors mt-2">Add to List</button>
+              </div>
             </div>
           </Modal>
 
