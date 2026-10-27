@@ -17,6 +17,66 @@ const PHRASE_ALIASES = new Map([
   ['aubergines', 'eggplant'],
 ]);
 
+// Canonical bilingual vocabulary for common groceries. Keeping this explicit
+// makes automatic database merges predictable and avoids sending household
+// shopping data to an external translation or AI service.
+const TOKEN_ALIASES = new Map([
+  ['banane', 'banana'],
+  ['bananen', 'banana'],
+  ['koriander', 'coriander'],
+  ['apfel', 'apple'],
+  ['apfeln', 'apple'],
+  ['birne', 'pear'],
+  ['birnen', 'pear'],
+  ['erdbeere', 'strawberry'],
+  ['erdbeeren', 'strawberry'],
+  ['himbeere', 'raspberry'],
+  ['himbeeren', 'raspberry'],
+  ['blaubeere', 'blueberry'],
+  ['blaubeeren', 'blueberry'],
+  ['zitrone', 'lemon'],
+  ['zitronen', 'lemon'],
+  ['limette', 'lime'],
+  ['limetten', 'lime'],
+  ['orange', 'orange'],
+  ['orangen', 'orange'],
+  ['traube', 'grape'],
+  ['trauben', 'grape'],
+  ['kartoffel', 'potato'],
+  ['kartoffeln', 'potato'],
+  ['tomate', 'tomato'],
+  ['tomaten', 'tomato'],
+  ['zwiebel', 'onion'],
+  ['zwiebeln', 'onion'],
+  ['knoblauch', 'garlic'],
+  ['karotte', 'carrot'],
+  ['karotten', 'carrot'],
+  ['mohre', 'carrot'],
+  ['mohren', 'carrot'],
+  ['gurke', 'cucumber'],
+  ['gurken', 'cucumber'],
+  ['paprika', 'bell pepper'],
+  ['brokkoli', 'broccoli'],
+  ['blumenkohl', 'cauliflower'],
+  ['spinat', 'spinach'],
+  ['milch', 'milk'],
+  ['kase', 'cheese'],
+  ['eier', 'egg'],
+  ['joghurt', 'yogurt'],
+  ['reis', 'rice'],
+  ['nudeln', 'pasta'],
+  ['brot', 'bread'],
+  ['mehl', 'flour'],
+  ['zucker', 'sugar'],
+  ['salz', 'salt'],
+  ['pfeffer', 'pepper'],
+  ['hahnchen', 'chicken'],
+  ['rindfleisch', 'beef'],
+  ['schweinefleisch', 'pork'],
+  ['lachs', 'salmon'],
+  ['thunfisch', 'tuna'],
+]);
+
 const NOISE_WORDS = new Set([
   'a', 'an', 'the', 'of', 'fresh', 'organic', 'pack', 'packet', 'bottle', 'bottles',
   'bag', 'bags', 'box', 'boxes', 'can', 'cans', 'tin', 'tins', 'jar', 'jars',
@@ -64,7 +124,8 @@ export const normalizeItemName = (value = '') => {
     .split(' ')
     .filter(Boolean)
     .filter((token) => !NOISE_WORDS.has(token) && !UNIT_WORDS.has(token))
-    .map(singularize);
+    .map(singularize)
+    .map((token) => TOKEN_ALIASES.get(token) || token);
 
   return (PHRASE_ALIASES.get(tokens.join(' ')) || tokens.join(' ')).trim();
 };
