@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ChefHat,
   ShoppingCart,
@@ -37,14 +37,22 @@ import {
   deleteDoc,
   doc,
   onSnapshot,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
+import {
+  chooseMergedItem,
+  findDuplicateGroups,
+  findItemSuggestions,
+  findSemanticMatch,
+  inferItemCategory,
+} from './itemMatching';
 
 // --- Firebase Configuration ---
 const getFirebaseConfig = () => {
   // 1. Try Canvas Preview Environment (Injected by system)
-  if (typeof __firebase_config !== 'undefined') {
-    return JSON.parse(__firebase_config);
+  if (typeof globalThis.__firebase_config !== 'undefined') {
+    return JSON.parse(globalThis.__firebase_config);
   }
 
   // 2. Try Vite Environment Variables (Standard for Vercel + Vite)
@@ -59,7 +67,7 @@ const getFirebaseConfig = () => {
         appId: import.meta.env.VITE_FIREBASE_APP_ID,
       };
     }
-  } catch (e) {
+  } catch {
     // Ignore errors if not in a Vite environment
   }
 
@@ -79,7 +87,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+const appId = typeof globalThis.__app_id !== 'undefined' ? globalThis.__app_id : 'default-app-id';
 
 // --- Constants ---
 const DEFAULT_CATEGORIES = [
@@ -325,7 +333,7 @@ export default function App() {
   const [mealSearchTerm, setMealSearchTerm] = useState('');
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [shoppingSearchTerm, setShoppingSearchTerm] = useState('');
-  const [addItemSearchTerm, setAddItemSearchTerm] = useState(''); // New search state for Add Item modal
+  const isMergingDuplicates = useRef(false);
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -342,8 +350,8 @@ export default function App() {
 
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+        if (typeof globalThis.__initial_auth_token !== 'undefined' && globalThis.__initial_auth_token) {
+          await signInWithCustomToken(auth, globalThis.__initial_auth_token);
         } else {
           await signInAnonymously(auth);
         }
@@ -396,6 +404,37 @@ export default function App() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user || items.length < 2 || isMergingDuplicates.current) return;
+
+    const duplicateGroups = findDuplicateGroups(items);
+    if (duplicateGroups.length === 0) return;
+
+    const mergeDuplicates = async () => {
+      isMergingDuplicates.current = true;
+      try {
+        for (const group of duplicateGroups) {
+          const { keeper, duplicates, data } = chooseMergedItem(group);
+          const batch = writeBatch(db);
+          batch.update(
+            doc(db, 'artifacts', appId, 'public', 'data', 'items', keeper.id),
+            data
+          );
+          duplicates.forEach((duplicate) => {
+            batch.delete(doc(db, 'artifacts', appId, 'public', 'data', 'items', duplicate.id));
+          });
+          await batch.commit();
+        }
+      } catch (error) {
+        console.error('Error merging duplicate items', error);
+      } finally {
+        isMergingDuplicates.current = false;
+      }
+    };
+
+    mergeDuplicates();
+  }, [items, user]);
+
   // --- Derived State ---
   const shoppingList = useMemo(() => items.filter(i => !i.isBought).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds), [items]);
   const historyList = useMemo(() => items.filter(i => i.isBought).sort((a,b) => b.boughtAt?.seconds - a.boughtAt?.seconds), [items]);
@@ -416,11 +455,15 @@ export default function App() {
     return recipes.filter(r => r.name.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
   }, [recipes, recipeSearchTerm]);
 
-  // Filtered history for Add Item Modal
-  const filteredAddItemHistory = useMemo(() => {
-    if (!addItemSearchTerm) return [];
-    return historyList.filter(item => item.name.toLowerCase().includes(addItemSearchTerm.toLowerCase()));
-  }, [historyList, addItemSearchTerm]);
+  const recentItemSuggestions = useMemo(
+    () => findItemSuggestions(historyList, newItemName),
+    [historyList, newItemName]
+  );
+
+  const semanticItemMatch = useMemo(
+    () => findSemanticMatch(items, newItemName),
+    [items, newItemName]
+  );
 
   const topRecipes = useMemo(() => {
     const counts = {};
@@ -456,17 +499,55 @@ export default function App() {
   const addItem = async (name, category = 'other') => {
     if (!name.trim() || !user) return;
     try {
+      const existingItem = findSemanticMatch(items, name);
+      if (existingItem) {
+        if (!existingItem.isBought) return existingItem;
+
+        const existingRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', existingItem.id);
+        await updateDoc(existingRef, {
+          isBought: false,
+          boughtAt: null,
+          category: existingItem.category || category,
+        });
+        setNewItemName('');
+        return existingItem;
+      }
+
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'items'), {
         name: name.trim(),
         category,
         isBought: false,
         createdAt: serverTimestamp(),
-        buyCount: 1
+        buyCount: 0
       });
       setNewItemName('');
     } catch (e) {
       console.error("Error adding item", e);
     }
+  };
+
+  const itemCategoryExamples = useMemo(() => [
+    ...items,
+    ...recipes.flatMap((recipe) => recipe.ingredients || []),
+  ], [items, recipes]);
+
+  const handleNewItemNameChange = (value) => {
+    setNewItemName(value);
+    if (value.trim()) {
+      setNewItemCategory(inferItemCategory(itemCategoryExamples, value));
+    }
+  };
+
+  const closeAddItemModal = () => {
+    setIsAddItemOpen(false);
+    setNewItemName('');
+    setNewItemCategory('other');
+  };
+
+  const submitItem = async (name = newItemName, category = newItemCategory) => {
+    if (!name.trim()) return;
+    await addItem(name, category);
+    closeAddItemModal();
   };
 
   const toggleItemStatus = async (item) => {
@@ -569,7 +650,13 @@ export default function App() {
 
   const addRecipeToShoppingList = async (recipe, showAlert = true) => {
     if (!user) return;
-    const promises = recipe.ingredients.map(async (ing) => {
+    const consolidatedIngredients = recipe.ingredients.reduce((unique, ingredient) => {
+      const alreadyIncluded = Boolean(findSemanticMatch(unique, ingredient.name));
+      if (!alreadyIncluded) unique.push(ingredient);
+      return unique;
+    }, []);
+
+    const promises = consolidatedIngredients.map(async (ing) => {
       await addItem(ing.name, ing.category || 'other');
     });
     await Promise.all(promises);
@@ -1089,80 +1176,102 @@ export default function App() {
             </div>
           </nav>
 
-          <Modal isOpen={isAddItemOpen} onClose={() => { setIsAddItemOpen(false); setAddItemSearchTerm(''); }} title="Add Item">
-            <div className="space-y-6">
-              {/* Section: Search Recent */}
+          <Modal isOpen={isAddItemOpen} onClose={closeAddItemModal} title="Add Item">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">From Recently Bought</label>
+                <label htmlFor="smart-item-name" className="block text-sm font-medium text-gray-700 mb-2">
+                  What do you need?
+                </label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                  <Search className="absolute left-3 top-3.5 text-gray-400" size={18} aria-hidden="true" />
                   <input
+                    id="smart-item-name"
+                    autoFocus
                     type="text"
-                    placeholder="Search recent items..."
-                    value={addItemSearchTerm}
-                    onChange={(e) => setAddItemSearchTerm(e.target.value)}
-                    className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
+                    placeholder="Start typing an item..."
+                    value={newItemName}
+                    onChange={(event) => handleNewItemNameChange(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && recentItemSuggestions.length === 0) submitItem();
+                    }}
+                    className="w-full bg-gray-50 pl-10 pr-10 py-3 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-gray-200 focus:border-indigo-300 transition-all text-base"
                   />
-                  {addItemSearchTerm && (
+                  {newItemName && (
                     <button
-                      onClick={() => setAddItemSearchTerm('')}
-                      className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+                      type="button"
+                      aria-label="Clear item name"
+                      onClick={() => handleNewItemNameChange('')}
+                      className="absolute right-2.5 top-2.5 p-1 text-gray-400 hover:text-gray-600 rounded-full"
                     >
                       <X size={18} />
                     </button>
                   )}
                 </div>
-                
-                {/* Suggestions List */}
-                {addItemSearchTerm && (
-                  <div className="mt-2 max-h-40 overflow-y-auto space-y-1 custom-scrollbar border border-gray-100 rounded-xl p-1">
-                    {filteredAddItemHistory.length === 0 ? (
-                       <p className="text-xs text-gray-400 text-center py-2">No matching recent items.</p>
-                    ) : (
-                       filteredAddItemHistory.map(item => (
-                         <button
-                           key={item.id}
-                           onClick={() => { addHistoryItemBack(item); setIsAddItemOpen(false); setAddItemSearchTerm(''); }}
-                           className="flex items-center justify-between w-full p-2 hover:bg-gray-50 rounded-lg transition-colors group"
-                         >
-                           <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700 text-left">{item.name}</span>
-                           <Plus size={16} className="text-gray-300 group-hover:text-indigo-500" />
-                         </button>
-                       ))
-                    )}
-                  </div>
-                )}
               </div>
 
-              {/* Divider */}
-              <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-gray-200"></div>
-                  <span className="flex-shrink-0 mx-4 text-gray-400 text-xs uppercase font-semibold">Or Create New</span>
-                  <div className="flex-grow border-t border-gray-200"></div>
-              </div>
-
-              {/* Section: Create New */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-                  {/* Removed autoFocus to prevent conflict/jumpiness */}
-                  <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="e.g. Milk" className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-base" onKeyDown={(e) => e.key === 'Enter' && addItem(newItemName, newItemCategory)} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {allCategories.map(cat => (
-                      <button key={cat.id} onClick={() => setNewItemCategory(cat.id)} className={`p-2 rounded-lg text-sm text-left transition-all ${newItemCategory === cat.id ? 'ring-2 ring-indigo-500 bg-gray-50' : 'bg-white border border-gray-200'}`}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${cat.color.split(' ')[0].replace('text', 'bg')}`}></div>
-                          <span className="truncate">{cat.name}</span>
-                        </div>
+              {newItemName.trim() && recentItemSuggestions.length > 0 && (
+                <div className="space-y-2" aria-live="polite">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Recently bought</p>
+                  <div className="space-y-1">
+                    {recentItemSuggestions.map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => submitItem(item.name, item.category || 'other')}
+                        className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-indigo-50 rounded-xl transition-colors group"
+                      >
+                        <span className="text-left">
+                          <span className="block text-sm font-semibold text-gray-800 group-hover:text-indigo-700">{item.name}</span>
+                          <CategoryBadge categoryId={item.category} />
+                        </span>
+                        <Plus size={18} className="text-indigo-500" aria-hidden="true" />
                       </button>
                     ))}
                   </div>
                 </div>
-                <button onClick={() => { addItem(newItemName, newItemCategory); setIsAddItemOpen(false); }} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors mt-2">Add to List</button>
-              </div>
+              )}
+
+              {newItemName.trim() && semanticItemMatch && !semanticItemMatch.isBought && (
+                <div className="bg-emerald-50 text-emerald-800 text-sm p-3 rounded-xl flex items-center gap-2" role="status">
+                  <Check size={18} aria-hidden="true" />
+                  <span><strong>{semanticItemMatch.name}</strong> is already on your list.</span>
+                </div>
+              )}
+
+              {newItemName.trim() && recentItemSuggestions.length === 0 && !semanticItemMatch && (
+                <div className="space-y-3 pt-1" aria-live="polite">
+                  <div>
+                    <p className="font-semibold text-gray-800">Add “{newItemName.trim()}” as a new item</p>
+                    <p className="text-xs text-gray-500 mt-1">Choose a category. We’ll remember it next time.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {allCategories.map((category) => (
+                      <button
+                        type="button"
+                        key={category.id}
+                        onClick={() => setNewItemCategory(category.id)}
+                        className={`p-2.5 rounded-lg text-sm text-left transition-all ${newItemCategory === category.id ? 'ring-2 ring-indigo-500 bg-indigo-50' : 'bg-white border border-gray-200'}`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={`w-3 h-3 rounded-full ${category.color.split(' ')[0].replace('text', 'bg')}`}></span>
+                          <span className="truncate">{category.name}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => submitItem()}
+                    className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+                  >
+                    Add to List
+                  </button>
+                </div>
+              )}
+
+              {!newItemName.trim() && (
+                <p className="text-sm text-gray-400 text-center py-5">Suggestions will appear as you type.</p>
+              )}
             </div>
           </Modal>
 
