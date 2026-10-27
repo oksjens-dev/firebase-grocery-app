@@ -234,7 +234,7 @@ const CATEGORY_RULES = [
   {
     category: 'sauces',
     terms: [
-      'coconut milk', 'vinegar', 'essig', 'stock', 'broth', 'bruhe', 'tomato paste',
+      'vinegar', 'essig', 'stock', 'broth', 'bruhe', 'tomato paste',
       'soy sauce', 'teriyaki', 'balsamico', 'salt', 'salz', 'turmeric', 'kurkuma',
       'curry powder', 'pepper powder', 'paprika powder', 'chili flake', 'dip', 'agave',
       'canned tomato', 'tomato stuckig',
@@ -269,6 +269,7 @@ const CATEGORY_RULES = [
 ];
 
 export function inferPreferredCategory(name) {
+  const rawName = String(name || '').toLowerCase();
   const normalizedName = normalizeItemName(name);
   const containsTerm = (term) => {
     const normalizedTerm = normalizeItemName(term);
@@ -281,6 +282,10 @@ export function inferPreferredCategory(name) {
     'dish washer', 'dishwasher', 'detergent', 'cleaning', 'laundry', 'washing machine', 'wash powder',
   ].some(containsTerm);
   if (householdContext) return 'other';
+  if (containsTerm('coconut milk')) {
+    const cookingContext = /\b(?:can|canned|light|cooking)\b/.test(rawName);
+    return cookingContext ? 'sauces' : 'dairy';
+  }
 
   const matchingRule = CATEGORY_RULES.find(({ terms }) => (
     terms.some(containsTerm)

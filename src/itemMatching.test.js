@@ -38,6 +38,7 @@ test('remembers the category of a semantically equivalent item', () => {
 test('classifies the selected new categories and dairy alternatives', () => {
   assert.equal(inferPreferredCategory('Fresh parsley'), 'herbs');
   assert.equal(inferPreferredCategory('Can coconut milk light'), 'sauces');
+  assert.equal(inferPreferredCategory('Coconut milk drink'), 'dairy');
   assert.equal(inferPreferredCategory('Oatly'), 'dairy');
   assert.equal(inferPreferredCategory('Camomile tea'), 'drinks');
   assert.equal(inferPreferredCategory('Travel shampoo'), 'toiletries');
