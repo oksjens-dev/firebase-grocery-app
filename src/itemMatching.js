@@ -107,8 +107,7 @@ const singularize = (word) => {
   return word;
 };
 
-export const normalizeItemName = (value = '') => {
-  const cleaned = value
+const cleanItemName = (value = '') => value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -118,6 +117,15 @@ export const normalizeItemName = (value = '') => {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+const usesGermanAlias = (value) => cleanItemName(value)
+  .split(' ')
+  .filter(Boolean)
+  .map(singularize)
+  .some((token) => TOKEN_ALIASES.has(token) && TOKEN_ALIASES.get(token) !== token);
+
+export const normalizeItemName = (value = '') => {
+  const cleaned = cleanItemName(value);
 
   const aliasedPhrase = PHRASE_ALIASES.get(cleaned) || cleaned;
   const tokens = aliasedPhrase
@@ -268,6 +276,7 @@ export const chooseMergedItem = (group) => {
   const activeItems = group.filter((item) => !item.isBought);
   const mostRecentBoughtItem = [...group]
     .sort((left, right) => timestampValue(right.boughtAt) - timestampValue(left.boughtAt))[0];
+  const preferredEnglishName = sorted.find((item) => !usesGermanAlias(item.name))?.name || keeper.name;
   const quantity = activeItems.length > 0
     ? activeItems.reduce((total, item) => total + Math.max(1, item.quantity || 1), 0)
     : Math.max(1, mostRecentBoughtItem.quantity || 1);
@@ -276,6 +285,7 @@ export const chooseMergedItem = (group) => {
     keeper,
     duplicates: group.filter((item) => item.id !== keeper.id),
     data: {
+      name: preferredEnglishName,
       category: preferredCategory,
       isBought,
       boughtAt: isBought ? mostRecentBoughtItem.boughtAt || null : null,
