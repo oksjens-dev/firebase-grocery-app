@@ -68,6 +68,7 @@ import {
   itemSimilarity,
   normalizeItemName,
 } from './itemMatching';
+import { buildShoppingAnalytics, eventYear, getDailyShoppingInsight } from './shoppingAnalytics';
 
 // --- Firebase Configuration ---
 const getFirebaseConfig = () => {
@@ -135,18 +136,35 @@ const formatQuantity = (item) => {
 // --- Helper Components ---
 
 const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
+  const [sheetHeight, setSheetHeight] = useState(78);
+  const dragState = useRef(null);
   if (!isOpen) return null;
+  const startDrag = (event) => {
+    dragState.current = { y: event.clientY, height: sheetHeight };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveDrag = (event) => {
+    if (!dragState.current) return;
+    const delta = ((dragState.current.y - event.clientY) / window.innerHeight) * 100;
+    setSheetHeight(Math.min(94, Math.max(44, dragState.current.height + delta)));
+  };
+  const endDrag = () => {
+    if (sheetHeight < 58) setSheetHeight(48);
+    else if (sheetHeight < 84) setSheetHeight(74);
+    else setSheetHeight(94);
+    dragState.current = null;
+  };
   return (
     <div className={`fixed inset-0 z-[100] flex ${bottomSheet ? 'items-end' : 'items-center justify-center p-4'} bg-black/30 backdrop-blur-sm animate-fade-in`}>
-      <div className={`bg-[#fffcf8] w-full max-w-md max-h-[88vh] flex flex-col animate-slide-up shadow-2xl ${bottomSheet ? 'rounded-t-[2rem]' : 'rounded-2xl'}`}>
-        {bottomSheet && <div className="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mt-3" />}
+      <div style={bottomSheet ? { height: `${sheetHeight}dvh`, maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 8px)' } : undefined} className={`bg-[#fffcf8] w-full max-w-md min-h-0 flex flex-col animate-slide-up shadow-2xl ${bottomSheet ? 'rounded-t-[2rem]' : 'rounded-2xl max-h-[85vh]'}`}>
+        {bottomSheet && <button type="button" aria-label="Resize Add Item sheet" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} className="h-7 shrink-0 touch-none cursor-ns-resize"><span className="block w-10 h-1.5 bg-gray-300 rounded-full mx-auto" /></button>}
         <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 overflow-y-auto custom-scrollbar">
+        <div className="p-4 min-h-0 overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar">
           {children}
         </div>
       </div>
@@ -352,6 +370,7 @@ export default function App() {
   const [items, setItems] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [mealPlan, setMealPlan] = useState([]);
+  const [purchaseEvents, setPurchaseEvents] = useState([]);
   
   // UI State
   const [isAddItemOpen, setIsAddItemOpen] = useState(false);
@@ -377,6 +396,7 @@ export default function App() {
   const [customQuantityOpen, setCustomQuantityOpen] = useState(false);
   const [customQuantity, setCustomQuantity] = useState('1');
   const [customUnit, setCustomUnit] = useState('x');
+  const [deleteYear, setDeleteYear] = useState(null);
   
   const [newRecipeName, setNewRecipeName] = useState('');
   const [newRecipeIngredients, setNewRecipeIngredients] = useState([{ name: '', category: 'other' }]); 
@@ -420,6 +440,7 @@ export default function App() {
     const itemsRef = collection(db, 'artifacts', appId, 'public', 'data', 'items');
     const recipesRef = collection(db, 'artifacts', appId, 'public', 'data', 'recipes');
     const mealsRef = collection(db, 'artifacts', appId, 'public', 'data', 'meals');
+    const purchasesRef = collection(db, 'artifacts', appId, 'public', 'data', 'purchaseEvents');
 
     const unsubItems = onSnapshot(itemsRef, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -435,11 +456,15 @@ export default function App() {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setMealPlan(data);
     }, (err) => console.error("Meals sync error", err));
+    const unsubPurchases = onSnapshot(purchasesRef, (snapshot) => {
+      setPurchaseEvents(snapshot.docs.map(eventDoc => ({ id: eventDoc.id, ...eventDoc.data() })));
+    }, (err) => console.error('Purchase events sync error', err));
 
     return () => {
       unsubItems();
       unsubRecipes();
       unsubMeals();
+      unsubPurchases();
     };
   }, [user]);
 
@@ -566,17 +591,20 @@ export default function App() {
     [items, newItemName, selectedItem]
   );
 
-  const isNewItem = Boolean(newItemName.trim() && !semanticItemMatch && recentItemSuggestions.length === 0);
-
-  const homeInsight = useMemo(() => {
-    const facts = [
-      { value: historyList.length, title: 'Recently bought items', detail: 'Based on your current purchase history.' },
-      { value: items.filter(item => (item.buyCount || 0) > 1).length, title: 'Recurring staples', detail: 'Items that regularly return to your list.' },
-      { value: [...items].sort((a, b) => (b.buyCount || 0) - (a.buyCount || 0))[0]?.buyCount || 0, title: [...items].sort((a, b) => (b.buyCount || 0) - (a.buyCount || 0))[0]?.name || 'Most-bought item', detail: 'Your most frequently purchased item.' },
-    ];
-    const day = Math.floor(new Date().setHours(0, 0, 0, 0) / 86400000);
-    return facts[((day % facts.length) + facts.length) % facts.length];
-  }, [historyList, items]);
+  const autoRecentMatch = useMemo(() => {
+    if (recentItemSuggestions.length !== 1 || normalizeItemName(newItemName).length < 3) return null;
+    return itemSimilarity(recentItemSuggestions[0].name, newItemName) >= 0.78 ? recentItemSuggestions[0] : null;
+  }, [recentItemSuggestions, newItemName]);
+  const effectiveItemMatch = semanticItemMatch || autoRecentMatch;
+  const isNewItem = Boolean(newItemName.trim() && !effectiveItemMatch && recentItemSuggestions.length === 0);
+  const analyticsEvents = useMemo(() => purchaseEvents.length ? purchaseEvents : historyList.map(item => ({
+    id: `legacy-${item.id}`,
+    checkedAt: item.boughtAt,
+    itemName: item.name,
+    category: item.category,
+  })), [purchaseEvents, historyList]);
+  const shoppingAnalytics = useMemo(() => buildShoppingAnalytics(analyticsEvents), [analyticsEvents]);
+  const homeInsight = useMemo(() => getDailyShoppingInsight(shoppingAnalytics), [shoppingAnalytics]);
 
   const topRecipes = useMemo(() => {
     const counts = {};
@@ -697,7 +725,7 @@ export default function App() {
     return { '1': { value: 1, unit: 'x' }, '500 g': { value: 500, unit: 'g' }, '1 kg': { value: 1, unit: 'kg' }, '1 L': { value: 1, unit: 'L' } }[quantityPreset];
   };
 
-  const submitItem = async (name = semanticItemMatch?.name || newItemName, category = semanticItemMatch?.category || newItemCategory) => {
+  const submitItem = async (name = effectiveItemMatch?.name || newItemName, category = effectiveItemMatch?.category || newItemCategory) => {
     if (!name.trim()) return;
     await addItem(name, category, currentQuantity());
     closeAddItemModal();
@@ -707,13 +735,26 @@ export default function App() {
     if (!user) return;
     try {
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id);
-      await updateDoc(docRef, {
+      const batch = writeBatch(db);
+      batch.update(docRef, {
         isBought: !item.isBought,
         boughtAt: !item.isBought ? serverTimestamp() : null,
         buyCount: !item.isBought
           ? (item.buyCount || 0) + Math.max(1, item.quantity || 1)
           : item.buyCount
       });
+      if (!item.isBought) {
+        const eventRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'purchaseEvents'));
+        batch.set(eventRef, {
+          sourceItemId: item.id,
+          itemName: item.name,
+          category: item.category || 'other',
+          quantityValue: item.quantityValue || item.quantity || 1,
+          quantityUnit: item.quantityUnit || 'x',
+          checkedAt: serverTimestamp(),
+        });
+      }
+      await batch.commit();
     } catch (e) {
       console.error("Error toggling item", e);
     }
@@ -725,6 +766,31 @@ export default function App() {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'items', id));
     } catch (e) {
       console.error("Error deleting item", e);
+    }
+  };
+
+  const availableYears = useMemo(() => {
+    const years = new Set([new Date().getFullYear()]);
+    purchaseEvents.forEach(event => { if (eventYear(event)) years.add(eventYear(event)); });
+    historyList.forEach(item => { if (eventYear(item)) years.add(eventYear(item)); });
+    return [...years].sort((left, right) => right - left);
+  }, [purchaseEvents, historyList]);
+
+  const deleteYearData = async () => {
+    if (!user || !deleteYear) return;
+    try {
+      const targets = [
+        ...purchaseEvents.filter(event => eventYear(event) === deleteYear).map(event => ({ collectionName: 'purchaseEvents', id: event.id })),
+        ...historyList.filter(item => eventYear(item) === deleteYear).map(item => ({ collectionName: 'items', id: item.id })),
+      ];
+      for (let index = 0; index < targets.length; index += 450) {
+        const batch = writeBatch(db);
+        targets.slice(index, index + 450).forEach(target => batch.delete(doc(db, 'artifacts', appId, 'public', 'data', target.collectionName, target.id)));
+        await batch.commit();
+      }
+      setDeleteYear(null);
+    } catch (error) {
+      console.error('Error deleting yearly shopping data', error);
     }
   };
 
@@ -978,7 +1044,9 @@ export default function App() {
     <div className="space-y-6 pb-12">
       <button onClick={() => setActiveTab('home')} className="text-sm font-bold text-[#7548D8]">← Home</button>
       <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Marie &amp; Jens</p><h1 className="text-3xl font-bold mt-1">Settings</h1></div>
-      {[['General', [[Settings, 'Categories', `${DEFAULT_CATEGORIES.length} categories · English primary`]]], ['Data', [[Database, 'Firebase sync', 'Connected · live'], [ShoppingBag, 'Library', `${items.length} items · ${recipes.length} recipes`]]], ['Danger Zone', [[Trash2, 'Delete items', 'Available from the Shopping List and Recipes']]]].map(([label, rows]) => <section key={label}><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{label}</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{rows.map(([iconComponent, title, detail]) => <div key={title} className="flex gap-3 items-center p-4 border-b last:border-0 border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]">{React.createElement(iconComponent, { size: 18 })}</span><span><strong className="block text-gray-800">{title}</strong><small className="text-gray-500">{detail}</small></span></div>)}</div></section>)}
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">General</p><div className="rounded-2xl bg-white border border-purple-100"><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Settings size={18} /></span><span><strong className="block">Categories</strong><small className="text-gray-500">{DEFAULT_CATEGORIES.length} categories · English primary</small></span></div></div></section>
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Data</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="flex gap-3 items-center p-4 border-b border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Database size={18} /></span><span><strong className="block">Firebase sync</strong><small className="text-gray-500">Connected · {purchaseEvents.length} recorded check-offs</small></span></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><ShoppingBag size={18} /></span><span><strong className="block">Library</strong><small className="text-gray-500">{items.length} items · {recipes.length} recipes</small></span></div></div></section>
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Danger Zone</p><div className="rounded-2xl bg-white border border-red-100 overflow-hidden">{availableYears.map(year => <button key={year} onClick={() => setDeleteYear(year)} className="w-full flex gap-3 items-center p-4 text-left border-b last:border-0 border-red-50"><span className="p-2 rounded-xl bg-red-50 text-red-600"><Trash2 size={18} /></span><span className="flex-1"><strong className="block text-red-700">Delete {year} shopping data</strong><small className="text-gray-500">Removes checked-off items and analytics for this year</small></span><ChevronRight size={18} className="text-red-300" /></button>)}</div></section>
     </div>
   );
 
@@ -1176,6 +1244,16 @@ export default function App() {
           </div>
         </section>
 
+        <section className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100">
+          <div className="flex items-center justify-between mb-4"><div><h2 className="font-bold text-gray-800">Shopping rhythm</h2><p className="text-sm text-gray-500">Calculated from item check-offs grouped into store trips</p></div><Clock3 size={20} className="text-[#7548D8]" /></div>
+          {shoppingAnalytics.trips.length < 2 ? <div className="p-4 rounded-xl bg-purple-50 text-sm text-[#5d34ba]">Check off items after at least two shopping trips to calculate your rhythm.</div> : <div className="grid grid-cols-2 gap-3">
+            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.averageDaysBetweenTrips.toFixed(1)} days</strong><small className="block text-gray-500">Between shopping trips</small></div>
+            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.tripsThisMonth}</strong><small className="block text-gray-500">Trips this month</small></div>
+            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.averageItemsPerTrip.toFixed(1)}</strong><small className="block text-gray-500">Items per trip</small></div>
+            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.commonShoppingDay}</strong><small className="block text-gray-500">Most common day</small></div>
+          </div>}
+        </section>
+
         <section className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-2xl shadow-lg text-white relative overflow-hidden">
            <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4">
              <Award size={100} />
@@ -1356,15 +1434,15 @@ export default function App() {
 
           <Modal isOpen={isAddItemOpen} onClose={closeAddItemModal} title={selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
             <div className="space-y-4">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<input autoFocus value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="mt-2 w-full bg-stone-100 p-3.5 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" /></label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<span className="relative block mt-2"><input name="grocery-item-query" autoComplete="new-password" autoCorrect="off" autoCapitalize="sentences" spellCheck="false" value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="w-full bg-stone-100 p-3.5 pr-11 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" />{newItemName && <button type="button" aria-label="Clear item name" onClick={() => handleNewItemNameChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:text-gray-700"><X size={17} /></button>}</span></label>
               {recentItemSuggestions.length > 0 && <div className="rounded-2xl border border-purple-100 overflow-hidden">{recentItemSuggestions.map(item => <button key={item.id} onClick={() => { setSelectedItemId(item.id); setNewItemName(item.name); setNewItemCategory(item.category || 'other'); }} className="w-full p-3 flex items-center gap-3 text-left border-b last:border-0 border-purple-50"><CategoryBadge categoryId={item.category} /><strong className="flex-1">{item.name}</strong><small className="text-gray-400">Recent</small></button>)}</div>}
-              {semanticItemMatch && <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] text-sm flex gap-2"><Check size={17} /> Matched with your item library · {DEFAULT_CATEGORIES.find(category => category.id === semanticItemMatch.category)?.name || 'Other'}</div>}
+              {effectiveItemMatch && <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] text-sm flex gap-2"><Check size={17} /> Matched with your item library · {DEFAULT_CATEGORIES.find(category => category.id === effectiveItemMatch.category)?.name || 'Other'}</div>}
               <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
                 {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
               </div>
               {isNewItem && <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 text-[#7548D8] text-xs font-bold"><Plus size={14} /> Add new item</div>}
               {isNewItem && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Icon size={18} /></span>{category.name}</button>})}</div></div>}
-              {(semanticItemMatch || isNewItem) && <button onClick={() => submitItem()} className="w-full bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200">Save to Shopping List</button>}
+              {(effectiveItemMatch || isNewItem) && <button onClick={() => submitItem()} className="w-full bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200">Save to Shopping List</button>}
             </div>
           </Modal>
 
@@ -1418,6 +1496,13 @@ export default function App() {
                 <textarea value={newRecipeInstructions} onChange={(e) => setNewRecipeInstructions(e.target.value)} placeholder="1. Boil pasta..." rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-base" />
               </div>
               <button onClick={addRecipe} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Save Recipe</button>
+            </div>
+          </Modal>
+
+          <Modal isOpen={Boolean(deleteYear)} onClose={() => setDeleteYear(null)} title={`Delete ${deleteYear || ''} shopping data?`}>
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-red-50 text-red-800 text-sm"><strong>This cannot be undone.</strong><p className="mt-1">All checked-off items and shopping analytics recorded for {deleteYear} will be deleted. Recipes and items still on your active shopping list will remain.</p></div>
+              <div className="flex gap-2"><button onClick={() => setDeleteYear(null)} className="flex-1 p-3 rounded-xl bg-gray-100 font-bold text-gray-700">Cancel</button><button onClick={deleteYearData} className="flex-1 p-3 rounded-xl bg-red-600 font-bold text-white">Delete {deleteYear}</button></div>
             </div>
           </Modal>
 
