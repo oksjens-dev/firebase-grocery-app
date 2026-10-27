@@ -18,7 +18,24 @@ import {
   Edit2,
   Save,
   Search,
-  AlertCircle
+  AlertCircle,
+  Home,
+  Settings,
+  ChevronRight,
+  ShoppingBag,
+  Clock3,
+  Database,
+  Leaf,
+  Apple,
+  Milk,
+  Beef,
+  Wheat,
+  Soup,
+  CupSoda,
+  Candy,
+  HeartPulse,
+  Package,
+  MoreHorizontal
 } from 'lucide-react';
 
 // --- Firebase Imports ---
@@ -48,6 +65,8 @@ import {
   findSemanticMatch,
   inferItemCategory,
   inferPreferredCategory,
+  itemSimilarity,
+  normalizeItemName,
 } from './itemMatching';
 
 // --- Firebase Configuration ---
@@ -93,27 +112,34 @@ const appId = typeof globalThis.__app_id !== 'undefined' ? globalThis.__app_id :
 
 // --- Constants ---
 const DEFAULT_CATEGORIES = [
-  { id: 'veggies', name: 'Veggies', color: 'bg-green-100 text-green-800' },
-  { id: 'herbs', name: 'Herbs', color: 'bg-emerald-100 text-emerald-800' },
-  { id: 'fruit', name: 'Fruit', color: 'bg-rose-100 text-rose-800' },
-  { id: 'dairy', name: 'Dairy, Eggs & Alternatives', color: 'bg-yellow-100 text-yellow-800' },
-  { id: 'meat', name: 'Meat & Fish', color: 'bg-red-100 text-red-800' },
-  { id: 'pasta', name: 'Bread, Pasta & Grains', color: 'bg-orange-100 text-orange-800' },
-  { id: 'sauces', name: 'Sauces, Spices & Cans', color: 'bg-amber-100 text-amber-800' },
-  { id: 'drinks', name: 'Drinks', color: 'bg-cyan-100 text-cyan-800' },
-  { id: 'sweets', name: 'Sweets & Snacks', color: 'bg-pink-100 text-pink-800' },
-  { id: 'household', name: 'Household', color: 'bg-blue-100 text-blue-800' },
-  { id: 'toiletries', name: 'Toiletries & Health', color: 'bg-violet-100 text-violet-800' },
-  { id: 'other', name: 'Other', color: 'bg-gray-100 text-gray-800' },
+  { id: 'veggies', name: 'Veggies', icon: Leaf },
+  { id: 'herbs', name: 'Herbs', icon: Leaf },
+  { id: 'fruit', name: 'Fruit', icon: Apple },
+  { id: 'dairy', name: 'Dairy, Eggs & Alternatives', icon: Milk },
+  { id: 'meat', name: 'Meat & Fish', icon: Beef },
+  { id: 'pasta', name: 'Bread, Pasta & Grains', icon: Wheat },
+  { id: 'sauces', name: 'Sauces, Spices & Cans', icon: Soup },
+  { id: 'drinks', name: 'Drinks', icon: CupSoda },
+  { id: 'sweets', name: 'Sweets & Snacks', icon: Candy },
+  { id: 'household', name: 'Household', icon: Home },
+  { id: 'toiletries', name: 'Toiletries & Health', icon: HeartPulse },
+  { id: 'other', name: 'Other', icon: Package },
 ];
+
+const formatQuantity = (item) => {
+  const value = Math.max(0.01, Number(item.quantityValue || item.quantity || 1));
+  const unit = item.quantityUnit || 'x';
+  return unit === 'x' ? `${value}×` : `${value}${unit}`;
+};
 
 // --- Helper Components ---
 
-const Modal = ({ isOpen, onClose, title, children }) => {
+const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex flex-col animate-slide-up shadow-2xl">
+    <div className={`fixed inset-0 z-[100] flex ${bottomSheet ? 'items-end' : 'items-center justify-center p-4'} bg-black/30 backdrop-blur-sm animate-fade-in`}>
+      <div className={`bg-[#fffcf8] w-full max-w-md max-h-[88vh] flex flex-col animate-slide-up shadow-2xl ${bottomSheet ? 'rounded-t-[2rem]' : 'rounded-2xl'}`}>
+        {bottomSheet && <div className="w-10 h-1.5 bg-gray-300 rounded-full mx-auto mt-3" />}
         <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
@@ -131,11 +157,11 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 const CategoryBadge = ({ categoryId }) => {
   const defaultCat = DEFAULT_CATEGORIES.find(c => c.id === categoryId);
   const label = defaultCat ? defaultCat.name : categoryId;
-  const colorClass = defaultCat ? defaultCat.color : 'bg-indigo-50 text-indigo-700 border border-indigo-100';
+  const Icon = defaultCat?.icon || Package;
 
   return (
-    <span className={`text-xs px-2 py-1 rounded-full font-medium ${colorClass} truncate max-w-[120px] inline-block align-middle`}>
-      {label}
+    <span className="text-xs px-2 py-1 rounded-full font-medium bg-purple-50 text-[#7548D8] border border-purple-100 truncate max-w-[180px] inline-flex items-center gap-1 align-middle">
+      <Icon size={12} /> {label}
     </span>
   );
 };
@@ -320,7 +346,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isLoadingLong, setIsLoadingLong] = useState(false);
-  const [activeTab, setActiveTab] = useState('shopping'); 
+  const [activeTab, setActiveTab] = useState('home');
   
   // Data State
   const [items, setItems] = useState([]);
@@ -339,12 +365,18 @@ export default function App() {
   const [mealSearchTerm, setMealSearchTerm] = useState('');
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [shoppingSearchTerm, setShoppingSearchTerm] = useState('');
+  const [recentFilter, setRecentFilter] = useState('all');
   const isMergingDuplicates = useRef(false);
   const isMigratingCategories = useRef(false);
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('other');
+  const [selectedItemId, setSelectedItemId] = useState(null);
+  const [quantityPreset, setQuantityPreset] = useState('1');
+  const [customQuantityOpen, setCustomQuantityOpen] = useState(false);
+  const [customQuantity, setCustomQuantity] = useState('1');
+  const [customUnit, setCustomUnit] = useState('x');
   
   const [newRecipeName, setNewRecipeName] = useState('');
   const [newRecipeIngredients, setNewRecipeIngredients] = useState([{ name: '', category: 'other' }]); 
@@ -502,24 +534,49 @@ export default function App() {
   }, [shoppingList, shoppingSearchTerm]);
 
   const filteredHistory = useMemo(() => {
-    if (!historySearchTerm) return historyList;
-    return historyList.filter(item => item.name.toLowerCase().includes(historySearchTerm.toLowerCase()));
-  }, [historyList, historySearchTerm]);
+    return historyList.filter(item => {
+      if (!item.name.toLowerCase().includes(historySearchTerm.toLowerCase())) return false;
+      if (recentFilter === 'all') return true;
+      const bought = item.boughtAt?.seconds ? item.boughtAt.seconds * 1000 : 0;
+      return bought && Date.now() - bought <= (recentFilter === 'week' ? 7 : 31) * 86400000;
+    });
+  }, [historyList, historySearchTerm, recentFilter]);
 
   const filteredRecipes = useMemo(() => {
     if (!recipeSearchTerm) return recipes;
     return recipes.filter(r => r.name.toLowerCase().includes(recipeSearchTerm.toLowerCase()));
   }, [recipes, recipeSearchTerm]);
 
+  const selectedItem = useMemo(() => items.find(item => item.id === selectedItemId) || null, [items, selectedItemId]);
+
   const recentItemSuggestions = useMemo(
-    () => findItemSuggestions(historyList, newItemName),
-    [historyList, newItemName]
+    () => {
+      if (selectedItem) return [];
+      const query = normalizeItemName(newItemName);
+      return findItemSuggestions(historyList, newItemName).filter(item => {
+        const candidate = normalizeItemName(item.name);
+        return candidate.includes(query) || query.includes(candidate) || itemSimilarity(item.name, newItemName) >= 0.78;
+      });
+    },
+    [historyList, newItemName, selectedItem]
   );
 
   const semanticItemMatch = useMemo(
-    () => findSemanticMatch(items, newItemName),
-    [items, newItemName]
+    () => selectedItem || findSemanticMatch(items, newItemName),
+    [items, newItemName, selectedItem]
   );
+
+  const isNewItem = Boolean(newItemName.trim() && !semanticItemMatch && recentItemSuggestions.length === 0);
+
+  const homeInsight = useMemo(() => {
+    const facts = [
+      { value: historyList.length, title: 'Recently bought items', detail: 'Based on your current purchase history.' },
+      { value: items.filter(item => (item.buyCount || 0) > 1).length, title: 'Recurring staples', detail: 'Items that regularly return to your list.' },
+      { value: [...items].sort((a, b) => (b.buyCount || 0) - (a.buyCount || 0))[0]?.buyCount || 0, title: [...items].sort((a, b) => (b.buyCount || 0) - (a.buyCount || 0))[0]?.name || 'Most-bought item', detail: 'Your most frequently purchased item.' },
+    ];
+    const day = Math.floor(new Date().setHours(0, 0, 0, 0) / 86400000);
+    return facts[((day % facts.length) + facts.length) % facts.length];
+  }, [historyList, items]);
 
   const topRecipes = useMemo(() => {
     const counts = {};
@@ -552,16 +609,21 @@ export default function App() {
 
   // --- Actions ---
 
-  const addItem = async (name, category = 'other', quantity = 1) => {
+  const addItem = async (name, category = 'other', quantity = { value: 1, unit: 'x' }) => {
     if (!name.trim() || !user) return;
-    const requestedQuantity = Math.max(1, quantity || 1);
+    const requested = typeof quantity === 'number'
+      ? { value: Math.max(1, quantity), unit: 'x' }
+      : { value: Math.max(0.01, Number(quantity.value) || 1), unit: quantity.unit || 'x' };
     try {
       const existingItem = findSemanticMatch(items, name);
       if (existingItem) {
         const existingRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', existingItem.id);
         if (!existingItem.isBought) {
+          const sameUnit = (existingItem.quantityUnit || 'x') === requested.unit;
           await updateDoc(existingRef, {
-            quantity: Math.max(1, existingItem.quantity || 1) + requestedQuantity,
+            quantity: requested.unit === 'x' ? (sameUnit ? Math.max(1, existingItem.quantity || 1) + requested.value : requested.value) : 1,
+            quantityValue: sameUnit ? Math.max(1, existingItem.quantityValue || existingItem.quantity || 1) + requested.value : requested.value,
+            quantityUnit: requested.unit,
           });
           setNewItemName('');
           return existingItem;
@@ -571,7 +633,9 @@ export default function App() {
           isBought: false,
           boughtAt: null,
           category: existingItem.category || category,
-          quantity: requestedQuantity,
+          quantity: requested.unit === 'x' ? requested.value : 1,
+          quantityValue: requested.value,
+          quantityUnit: requested.unit,
         });
         setNewItemName('');
         return existingItem;
@@ -583,7 +647,9 @@ export default function App() {
         isBought: false,
         createdAt: serverTimestamp(),
         buyCount: 0,
-        quantity: requestedQuantity,
+        quantity: requested.unit === 'x' ? requested.value : 1,
+        quantityValue: requested.value,
+        quantityUnit: requested.unit,
       });
       setNewItemName('');
     } catch (e) {
@@ -598,6 +664,7 @@ export default function App() {
 
   const handleNewItemNameChange = (value) => {
     setNewItemName(value);
+    setSelectedItemId(null);
     if (value.trim()) {
       setNewItemCategory(inferItemCategory(itemCategoryExamples, value));
     }
@@ -607,11 +674,32 @@ export default function App() {
     setIsAddItemOpen(false);
     setNewItemName('');
     setNewItemCategory('other');
+    setSelectedItemId(null);
+    setQuantityPreset('1');
+    setCustomQuantityOpen(false);
+    setCustomQuantity('1');
+    setCustomUnit('x');
   };
 
-  const submitItem = async (name = newItemName, category = newItemCategory) => {
+  const openAddItemModal = (item = null) => {
+    setSelectedItemId(item?.id || null);
+    setNewItemName(item?.name || '');
+    setNewItemCategory(item?.category || 'other');
+    setQuantityPreset('1');
+    setCustomQuantityOpen(false);
+    setCustomQuantity('1');
+    setCustomUnit('x');
+    setIsAddItemOpen(true);
+  };
+
+  const currentQuantity = () => {
+    if (customQuantityOpen) return { value: customQuantity, unit: customUnit };
+    return { '1': { value: 1, unit: 'x' }, '500 g': { value: 500, unit: 'g' }, '1 kg': { value: 1, unit: 'kg' }, '1 L': { value: 1, unit: 'L' } }[quantityPreset];
+  };
+
+  const submitItem = async (name = semanticItemMatch?.name || newItemName, category = semanticItemMatch?.category || newItemCategory) => {
     if (!name.trim()) return;
-    await addItem(name, category);
+    await addItem(name, category, currentQuantity());
     closeAddItemModal();
   };
 
@@ -726,19 +814,7 @@ export default function App() {
     if (showAlert) alert(`Added ingredients for ${recipe.name} to list!`);
   };
 
-  const addHistoryItemBack = async (item) => {
-    if (!user) return;
-    try {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id);
-      await updateDoc(docRef, {
-        isBought: false,
-        boughtAt: null,
-        quantity: 1,
-      });
-    } catch (e) {
-      console.error("Error moving history item back", e);
-    }
-  };
+  const addHistoryItemBack = (item) => openAddItemModal(item);
 
   const planMeal = async (recipe, dayOffset) => {
     if (!user) return;
@@ -774,14 +850,8 @@ export default function App() {
             <div className="flex justify-between items-start">
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
-                <p className="text-sm text-gray-500 mt-1">Tap + to add a new item to the shopping list.</p>
+                <p className="text-sm text-gray-500 mt-1">Grouped by category for a quicker shop.</p>
               </div>
-              <button
-                onClick={() => setIsAddItemOpen(true)}
-                className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
-              >
-                <Plus size={24} />
-              </button>
             </div>
             {/* Added Search Bar for Shopping List */}
             <div className="relative">
@@ -880,6 +950,38 @@ export default function App() {
 
   // --- Render Content Views ---
 
+  const renderHomeView = () => (
+    <div className="space-y-6 pb-24 animate-in fade-in duration-300">
+      <div className="flex items-start justify-between">
+        <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Household overview</p><h1 className="text-3xl font-bold leading-tight mt-2">{new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'},<br />Marie &amp; Jens</h1></div>
+        <button onClick={() => setActiveTab('settings')} className="p-3 rounded-full bg-white/70 backdrop-blur-xl border border-white shadow-lg text-gray-700"><Settings size={21} /></button>
+      </div>
+      <div className="rounded-3xl bg-white border border-purple-100 shadow-sm overflow-hidden">
+        <button onClick={() => setActiveTab('shopping')} className="w-full flex items-center gap-3 p-4 text-left bg-[#7548D8] text-white">
+          <span className="p-2 rounded-xl bg-white/15"><ShoppingCart size={19} /></span><span className="flex-1"><strong className="block">Shopping List</strong><small className="text-white/75">{shoppingList.length} items</small></span><span className="px-2 py-1 rounded-full bg-white/20 text-xs font-bold">{shoppingList.length}</span>
+        </button>
+        {[[recipes.length, 'recipes', ChefHat, 'Recipes', `${recipes.length} saved`], [historyList.length, 'history', Clock3, 'Recent', `${historyList.length} bought items`], [mealPlan.length, 'analytics', Calendar, 'Planning & Analytics', `${mealPlan.length} meals planned`]].map(([, tab, iconComponent, title, subtitle]) => (
+          <button key={tab} onClick={() => setActiveTab(tab)} className="w-full flex items-center gap-3 p-4 text-left border-t border-purple-50">
+            <span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]">{React.createElement(iconComponent, { size: 18 })}</span><span className="flex-1"><strong className="block text-gray-800">{title}</strong><small className="text-gray-500">{subtitle}</small></span><ChevronRight size={18} className="text-gray-400" />
+          </button>
+        ))}
+      </div>
+      <div><div className="flex justify-between items-center mb-3"><h2 className="text-xl font-bold">This month</h2><button onClick={() => setActiveTab('analytics')} className="text-xs font-bold text-[#7548D8]">Analytics</button></div>
+        <button onClick={() => setActiveTab('analytics')} className="w-full flex items-center gap-4 text-left bg-white border border-purple-100 rounded-3xl p-4 shadow-sm">
+          <span className="w-14 h-14 grid place-items-center rounded-2xl bg-purple-50 text-[#7548D8] font-extrabold">{homeInsight.value}</span><span><small className="uppercase tracking-widest text-[10px] font-bold text-[#7548D8]">Daily shopping rhythm</small><strong className="block text-gray-800">{homeInsight.title}</strong><span className="text-sm text-gray-500">{homeInsight.detail}</span></span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderSettingsView = () => (
+    <div className="space-y-6 pb-12">
+      <button onClick={() => setActiveTab('home')} className="text-sm font-bold text-[#7548D8]">← Home</button>
+      <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Marie &amp; Jens</p><h1 className="text-3xl font-bold mt-1">Settings</h1></div>
+      {[['General', [[Settings, 'Categories', `${DEFAULT_CATEGORIES.length} categories · English primary`]]], ['Data', [[Database, 'Firebase sync', 'Connected · live'], [ShoppingBag, 'Library', `${items.length} items · ${recipes.length} recipes`]]], ['Danger Zone', [[Trash2, 'Delete items', 'Available from the Shopping List and Recipes']]]].map(([label, rows]) => <section key={label}><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">{label}</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{rows.map(([iconComponent, title, detail]) => <div key={title} className="flex gap-3 items-center p-4 border-b last:border-0 border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]">{React.createElement(iconComponent, { size: 18 })}</span><span><strong className="block text-gray-800">{title}</strong><small className="text-gray-500">{detail}</small></span></div>)}</div></section>)}
+    </div>
+  );
+
   const renderShoppingListView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
       {/* Display Filtered Shopping List */}
@@ -896,23 +998,20 @@ export default function App() {
           )}
         </div>
       ) : (
-        <div className="space-y-2">
-          {filteredShoppingList.map(item => (
-            <div
-              key={item.id}
-              className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between group transition-all hover:shadow-md"
-            >
+        <div className="space-y-6">
+          {DEFAULT_CATEGORIES.map(category => {
+            const categoryItems = filteredShoppingList.filter(item => (item.category || 'other') === category.id);
+            if (!categoryItems.length) return null;
+            const CategoryIcon = category.icon;
+            return <section key={category.id}><div className="flex items-center gap-2 mb-2"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><CategoryIcon size={18} /></span><h2 className="font-bold text-gray-800 flex-1">{category.name}</h2><small className="text-gray-400">{categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}</small></div><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{categoryItems.map(item => (
+            <div key={item.id} className="p-3 border-b last:border-0 border-purple-50 flex items-center justify-between group transition-all">
               <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleItemStatus(item)}>
                 <div className="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-indigo-500 group-hover:border-indigo-400">
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-gray-800">{item.name}</p>
-                    {Math.max(1, item.quantity || 1) > 1 && (
-                      <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-                        {Math.max(1, item.quantity || 1)}×
-                      </span>
-                    )}
+                    <span className="text-xs font-bold text-[#7548D8] bg-purple-50 px-2 py-0.5 rounded-full">{formatQuantity(item)}</span>
                   </div>
                   <CategoryBadge categoryId={item.category} />
                 </div>
@@ -923,15 +1022,18 @@ export default function App() {
               >
                 <Trash2 size={18} />
               </button>
-            </div>
-          ))}
+            </div>))}</div></section>})}
         </div>
       )}
+      <button onClick={() => openAddItemModal()} className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 flex items-center gap-2 px-5 py-3 rounded-full bg-[#7548D8]/90 backdrop-blur-xl text-white font-bold shadow-xl border border-white/30"><Plus size={18} /> Add Item</button>
     </div>
   );
 
   const renderHistoryView = () => (
     <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
+      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">
+        {[['all','All'],['week','This Week'],['month','This Month']].map(([id,label]) => <button key={id} onClick={() => setRecentFilter(id)} className={`py-2 rounded-lg text-xs font-bold transition-all ${recentFilter === id ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{label}</button>)}
+      </div>
       {filteredHistory.length === 0 ? (
          <div className="text-center py-12 text-gray-400">
             {historyList.length === 0 ? (
@@ -952,7 +1054,7 @@ export default function App() {
                 >
                     <div className="flex items-center gap-3 flex-1">
                     <div className="line-through text-gray-500 font-medium">
-                      {item.name}{Math.max(1, item.quantity || 1) > 1 ? ` · ${Math.max(1, item.quantity || 1)}×` : ''}
+                      {item.name} · {formatQuantity(item)}
                     </div>
                     <CategoryBadge categoryId={item.category} />
                     </div>
@@ -1114,7 +1216,7 @@ export default function App() {
              {Object.entries(categoryCounts).map(([catId, count]) => {
                const cat = DEFAULT_CATEGORIES.find(c => c.id === catId);
                const name = cat ? cat.name : catId;
-               const colorClass = cat ? cat.color.split(' ')[0].replace('text', 'bg') : 'bg-indigo-500';
+               const colorClass = 'bg-[#7548D8]';
                const percentage = Math.round((count / historyList.length) * 100);
                return (
                  <div key={catId}>
@@ -1197,41 +1299,44 @@ export default function App() {
         }
       `}</style>
       {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
-      <div className="fixed inset-0 w-full h-[100dvh] bg-gray-100 font-sans text-gray-900 flex justify-center items-center">
+      <div className="fixed inset-0 w-full h-[100dvh] bg-[#eee8e3] font-sans text-gray-900 flex justify-center items-center">
         {/* Mobile Device Simulation/Actual Container */}
-        <div className="w-full max-w-md h-full bg-white shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-gray-800">
+        <div className="w-full max-w-md h-full bg-[#fffaf6] shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70">
           
           {/* Status Bar */}
           <div className="h-6 bg-white w-full shrink-0 sm:block hidden"></div>
 
           {/* Fixed Top Header (Outside ScrollView) */}
-          <div className="px-4 pt-2 pb-2 bg-white z-20 shrink-0 border-b border-gray-50">
-             {renderHeader()}
-          </div>
+          {!['home','settings'].includes(activeTab) && <div className="px-4 pt-2 pb-2 bg-[#fffaf6] z-20 shrink-0 border-b border-purple-50">{renderHeader()}</div>}
 
           {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
           <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
+            {activeTab === 'home' && renderHomeView()}
             {activeTab === 'shopping' && renderShoppingListView()}
             {activeTab === 'recipes' && renderRecipesView()}
             {activeTab === 'history' && renderHistoryView()}
             {activeTab === 'analytics' && renderAnalyticsView()}
+            {activeTab === 'settings' && renderSettingsView()}
           </main>
 
           {/* Fixed Navigation Bar */}
-          <nav className="absolute bottom-0 left-0 right-0 z-50">
+          {activeTab !== 'settings' && <nav className="absolute bottom-0 left-0 right-0 z-50">
             <div className="bg-white/95 backdrop-blur-2xl border-t border-slate-200 pb-safe transition-all shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
-              <div className="flex justify-around items-center h-20 px-2 pb-2">
-                <button onClick={() => setActiveTab('recipes')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                  <div className={`px-5 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'recipes' ? 'bg-indigo-100 text-indigo-600 translate-y-0' : 'text-slate-400 group-hover:bg-slate-100 group-active:scale-95'}`}>
-                    <ChefHat size={24} strokeWidth={activeTab === 'recipes' ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[10px] font-semibold mt-1 transition-all duration-300 ${activeTab === 'recipes' ? 'text-indigo-600' : 'text-slate-400'}`}>Recipes</span>
+              <div className="flex justify-around items-center h-20 px-1 pb-2">
+                <button onClick={() => setActiveTab('home')} className="flex-1 flex flex-col items-center justify-center group outline-none">
+                  <div className={`px-3 py-1.5 rounded-full transition-all ${activeTab === 'home' ? 'bg-purple-100 text-[#7548D8]' : 'text-slate-400'}`}><Home size={22} /></div><span className={`text-[9px] font-semibold mt-1 ${activeTab === 'home' ? 'text-[#7548D8]' : 'text-slate-400'}`}>Home</span>
                 </button>
                 <button onClick={() => setActiveTab('shopping')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                  <div className={`px-5 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'shopping' ? 'bg-indigo-100 text-indigo-600 translate-y-0' : 'text-slate-400 group-hover:bg-slate-100 group-active:scale-95'}`}>
-                    <ShoppingCart size={24} strokeWidth={activeTab === 'shopping' ? 2.5 : 2} />
+                  <div className={`px-3 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'shopping' ? 'bg-purple-100 text-[#7548D8]' : 'text-slate-400'}`}>
+                    <ShoppingCart size={22} strokeWidth={activeTab === 'shopping' ? 2.5 : 2} />
                   </div>
-                  <span className={`text-[10px] font-semibold mt-1 transition-all duration-300 ${activeTab === 'shopping' ? 'text-indigo-600' : 'text-slate-400'}`}>List</span>
+                  <span className={`text-[9px] font-semibold mt-1 ${activeTab === 'shopping' ? 'text-[#7548D8]' : 'text-slate-400'}`}>List</span>
+                </button>
+                <button onClick={() => setActiveTab('recipes')} className="flex-1 flex flex-col items-center justify-center group outline-none">
+                  <div className={`px-3 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'recipes' ? 'bg-purple-100 text-[#7548D8]' : 'text-slate-400'}`}>
+                    <ChefHat size={22} strokeWidth={activeTab === 'recipes' ? 2.5 : 2} />
+                  </div>
+                  <span className={`text-[9px] font-semibold mt-1 ${activeTab === 'recipes' ? 'text-[#7548D8]' : 'text-slate-400'}`}>Recipes</span>
                 </button>
                 <button onClick={() => setActiveTab('history')} className="flex-1 flex flex-col items-center justify-center group outline-none">
                    <div className={`px-5 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'history' ? 'bg-indigo-100 text-indigo-600 translate-y-0' : 'text-slate-400 group-hover:bg-slate-100 group-active:scale-95'}`}>
@@ -1247,113 +1352,19 @@ export default function App() {
                 </button>
               </div>
             </div>
-          </nav>
+          </nav>}
 
-          <Modal isOpen={isAddItemOpen} onClose={closeAddItemModal} title="Add Item">
+          <Modal isOpen={isAddItemOpen} onClose={closeAddItemModal} title={selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
             <div className="space-y-4">
-              <div>
-                <label htmlFor="smart-item-name" className="block text-sm font-medium text-gray-700 mb-2">
-                  What do you need?
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3.5 text-gray-400" size={18} aria-hidden="true" />
-                  <input
-                    id="smart-item-name"
-                    autoFocus
-                    type="text"
-                    placeholder="Start typing an item..."
-                    value={newItemName}
-                    onChange={(event) => handleNewItemNameChange(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' && recentItemSuggestions.length === 0) submitItem();
-                    }}
-                    className="w-full bg-gray-50 pl-10 pr-10 py-3 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-gray-200 focus:border-indigo-300 transition-all text-base"
-                  />
-                  {newItemName && (
-                    <button
-                      type="button"
-                      aria-label="Clear item name"
-                      onClick={() => handleNewItemNameChange('')}
-                      className="absolute right-2.5 top-2.5 p-1 text-gray-400 hover:text-gray-600 rounded-full"
-                    >
-                      <X size={18} />
-                    </button>
-                  )}
-                </div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<input autoFocus value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="mt-2 w-full bg-stone-100 p-3.5 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" /></label>
+              {recentItemSuggestions.length > 0 && <div className="rounded-2xl border border-purple-100 overflow-hidden">{recentItemSuggestions.map(item => <button key={item.id} onClick={() => { setSelectedItemId(item.id); setNewItemName(item.name); setNewItemCategory(item.category || 'other'); }} className="w-full p-3 flex items-center gap-3 text-left border-b last:border-0 border-purple-50"><CategoryBadge categoryId={item.category} /><strong className="flex-1">{item.name}</strong><small className="text-gray-400">Recent</small></button>)}</div>}
+              {semanticItemMatch && <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] text-sm flex gap-2"><Check size={17} /> Matched with your item library · {DEFAULT_CATEGORIES.find(category => category.id === semanticItemMatch.category)?.name || 'Other'}</div>}
+              <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
+                {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
               </div>
-
-              {newItemName.trim() && recentItemSuggestions.length > 0 && (
-                <div className="space-y-2" aria-live="polite">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Recently bought</p>
-                  <div className="space-y-1">
-                    {recentItemSuggestions.map((item) => (
-                      <button
-                        type="button"
-                        key={item.id}
-                        onClick={() => submitItem(item.name, item.category || 'other')}
-                        className="flex items-center justify-between w-full p-3 bg-gray-50 hover:bg-indigo-50 rounded-xl transition-colors group"
-                      >
-                        <span className="text-left">
-                          <span className="block text-sm font-semibold text-gray-800 group-hover:text-indigo-700">{item.name}</span>
-                          <CategoryBadge categoryId={item.category} />
-                        </span>
-                        <Plus size={18} className="text-indigo-500" aria-hidden="true" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {newItemName.trim() && semanticItemMatch && !semanticItemMatch.isBought && (
-                <div className="bg-emerald-50 text-emerald-800 text-sm p-3 rounded-xl flex items-center justify-between gap-3" role="status">
-                  <span className="flex items-center gap-2">
-                    <Check size={18} aria-hidden="true" />
-                    <span><strong>{semanticItemMatch.name}</strong> is already on your list.</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => submitItem(semanticItemMatch.name, semanticItemMatch.category || 'other')}
-                    className="shrink-0 bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-800"
-                  >
-                    Add another
-                  </button>
-                </div>
-              )}
-
-              {newItemName.trim() && recentItemSuggestions.length === 0 && !semanticItemMatch && (
-                <div className="space-y-3 pt-1" aria-live="polite">
-                  <div>
-                    <p className="font-semibold text-gray-800">Add “{newItemName.trim()}” as a new item</p>
-                    <p className="text-xs text-gray-500 mt-1">Choose a category. We’ll remember it next time.</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {allCategories.map((category) => (
-                      <button
-                        type="button"
-                        key={category.id}
-                        onClick={() => setNewItemCategory(category.id)}
-                        className={`p-2.5 rounded-lg text-sm text-left transition-all ${newItemCategory === category.id ? 'ring-2 ring-indigo-500 bg-indigo-50' : 'bg-white border border-gray-200'}`}
-                      >
-                        <span className="flex items-center gap-2">
-                          <span className={`w-3 h-3 rounded-full ${category.color.split(' ')[0].replace('text', 'bg')}`}></span>
-                          <span className="truncate">{category.name}</span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => submitItem()}
-                    className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-                  >
-                    Add to List
-                  </button>
-                </div>
-              )}
-
-              {!newItemName.trim() && (
-                <p className="text-sm text-gray-400 text-center py-5">Suggestions will appear as you type.</p>
-              )}
+              {isNewItem && <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 text-[#7548D8] text-xs font-bold"><Plus size={14} /> Add new item</div>}
+              {isNewItem && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Icon size={18} /></span>{category.name}</button>})}</div></div>}
+              {(semanticItemMatch || isNewItem) && <button onClick={() => submitItem()} className="w-full bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200">Save to Shopping List</button>}
             </div>
           </Modal>
 

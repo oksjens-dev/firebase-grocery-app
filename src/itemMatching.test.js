@@ -103,6 +103,16 @@ test('merges duplicate active rows into one item with a combined quantity', () =
   assert.equal(merged.data.quantity, 2);
 });
 
+test('preserves matching measurement units when duplicate rows are merged', () => {
+  const merged = chooseMergedItem([
+    { id: 'rice-1', name: 'Rice', category: 'pasta', isBought: false, quantity: 1, quantityValue: 500, quantityUnit: 'g' },
+    { id: 'rice-2', name: 'rice', category: 'pasta', isBought: false, quantity: 1, quantityValue: 250, quantityUnit: 'g' },
+  ]);
+
+  assert.equal(merged.data.quantityValue, 750);
+  assert.equal(merged.data.quantityUnit, 'g');
+});
+
 test('consolidates repeated recipe ingredients and preserves their quantity', () => {
   const ingredients = consolidateItemEntries([
     { name: 'Lemon', category: 'fruit' },

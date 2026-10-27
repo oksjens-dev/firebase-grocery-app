@@ -350,6 +350,12 @@ export const chooseMergedItem = (group) => {
   const quantity = activeItems.length > 0
     ? activeItems.reduce((total, item) => total + Math.max(1, item.quantity || 1), 0)
     : Math.max(1, mostRecentBoughtItem.quantity || 1);
+  const quantitySource = activeItems.length > 0 ? activeItems : [mostRecentBoughtItem];
+  const units = new Set(quantitySource.map((item) => item.quantityUnit || 'x'));
+  const quantityUnit = units.size === 1 ? [...units][0] : (keeper.quantityUnit || 'x');
+  const quantityValue = units.size === 1
+    ? quantitySource.reduce((total, item) => total + Math.max(0.01, Number(item.quantityValue || item.quantity || 1)), 0)
+    : Math.max(0.01, Number(keeper.quantityValue || keeper.quantity || quantity));
 
   return {
     keeper,
@@ -361,6 +367,8 @@ export const chooseMergedItem = (group) => {
       boughtAt: isBought ? mostRecentBoughtItem.boughtAt || null : null,
       buyCount: group.reduce((total, item) => total + Math.max(0, item.buyCount || 0), 0),
       quantity,
+      quantityValue,
+      quantityUnit,
     },
   };
 };
