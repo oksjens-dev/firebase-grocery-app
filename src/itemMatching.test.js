@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 
 import {
   chooseMergedItem,
+  consolidateItemEntries,
   findDuplicateGroups,
   findItemSuggestions,
   inferItemCategory,
+  inferPreferredCategory,
   itemSimilarity,
   normalizeItemName,
 } from './itemMatching.js';
@@ -33,6 +35,19 @@ test('remembers the category of a semantically equivalent item', () => {
   assert.equal(category, 'dairy');
 });
 
+test('classifies the selected new categories and dairy alternatives', () => {
+  assert.equal(inferPreferredCategory('Fresh parsley'), 'herbs');
+  assert.equal(inferPreferredCategory('Can coconut milk light'), 'sauces');
+  assert.equal(inferPreferredCategory('Coconut milk drink'), 'dairy');
+  assert.equal(inferPreferredCategory('Oatly'), 'dairy');
+  assert.equal(inferPreferredCategory('Camomile tea'), 'drinks');
+  assert.equal(inferPreferredCategory('Travel shampoo'), 'toiletries');
+  assert.equal(inferPreferredCategory('Wholegrain bread'), 'pasta');
+  assert.equal(inferPreferredCategory('Tomatoes big'), 'other');
+  assert.equal(inferPreferredCategory('Dish washer salt coarse'), 'other');
+  assert.equal(inferPreferredCategory('Detergent dish soap'), 'other');
+});
+
 test('groups true equivalents without merging a more specific product', () => {
   const groups = findDuplicateGroups([
     { id: '1', name: 'Green onions' },
@@ -57,6 +72,15 @@ test('groups German and English names for the same grocery product', () => {
   assert.ok(groupedIds.some((ids) => ids.has('koriander') && ids.has('coriander')));
 });
 
+test('prefers the existing English name when bilingual duplicates are merged', () => {
+  const merged = chooseMergedItem([
+    { id: 'german', name: 'Bananen', category: 'fruit', isBought: false, quantity: 1 },
+    { id: 'english', name: 'bananas', category: 'fruit', isBought: true, quantity: 1 },
+  ]);
+
+  assert.equal(merged.data.name, 'bananas');
+});
+
 test('merges counts and keeps an active duplicate on the shopping list', () => {
   const merged = chooseMergedItem([
     { id: 'bought', name: 'Courgette', category: 'veggies', isBought: true, buyCount: 2, boughtAt: { seconds: 20 } },
@@ -68,4 +92,33 @@ test('merges counts and keeps an active duplicate on the shopping list', () => {
   assert.equal(merged.data.category, 'veggies');
   assert.equal(merged.data.buyCount, 3);
   assert.deepEqual(merged.duplicates.map((item) => item.id), ['bought']);
+});
+
+test('merges duplicate active rows into one item with a combined quantity', () => {
+  const merged = chooseMergedItem([
+    { id: 'lemon-1', name: 'Lemon', category: 'fruit', isBought: false, quantity: 1, buyCount: 0 },
+    { id: 'lemon-2', name: 'lemon', category: 'fruit', isBought: false, quantity: 1, buyCount: 0 },
+  ]);
+
+  assert.equal(merged.data.quantity, 2);
+});
+
+test('preserves matching measurement units when duplicate rows are merged', () => {
+  const merged = chooseMergedItem([
+    { id: 'rice-1', name: 'Rice', category: 'pasta', isBought: false, quantity: 1, quantityValue: 500, quantityUnit: 'g' },
+    { id: 'rice-2', name: 'rice', category: 'pasta', isBought: false, quantity: 1, quantityValue: 250, quantityUnit: 'g' },
+  ]);
+
+  assert.equal(merged.data.quantityValue, 750);
+  assert.equal(merged.data.quantityUnit, 'g');
+});
+
+test('consolidates repeated recipe ingredients and preserves their quantity', () => {
+  const ingredients = consolidateItemEntries([
+    { name: 'Lemon', category: 'fruit' },
+    { name: 'lemons', category: 'fruit' },
+  ]);
+
+  assert.equal(ingredients.length, 1);
+  assert.equal(ingredients[0].quantity, 2);
 });

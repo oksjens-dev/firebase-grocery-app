@@ -24,6 +24,10 @@ const TOKEN_ALIASES = new Map([
   ['banane', 'banana'],
   ['bananen', 'banana'],
   ['koriander', 'coriander'],
+  ['basilikum', 'basil'],
+  ['petersilie', 'parsley'],
+  ['schnittlauch', 'chive'],
+  ['minze', 'mint'],
   ['apfel', 'apple'],
   ['apfeln', 'apple'],
   ['birne', 'pear'],
@@ -107,8 +111,7 @@ const singularize = (word) => {
   return word;
 };
 
-export const normalizeItemName = (value = '') => {
-  const cleaned = value
+const cleanItemName = (value = '') => value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -118,6 +121,15 @@ export const normalizeItemName = (value = '') => {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+const usesGermanAlias = (value) => cleanItemName(value)
+  .split(' ')
+  .filter(Boolean)
+  .map(singularize)
+  .some((token) => TOKEN_ALIASES.has(token) && TOKEN_ALIASES.get(token) !== token);
+
+export const normalizeItemName = (value = '') => {
+  const cleaned = cleanItemName(value);
 
   const aliasedPhrase = PHRASE_ALIASES.get(cleaned) || cleaned;
   const tokens = aliasedPhrase
@@ -209,11 +221,77 @@ export const findSemanticMatch = (items, name, threshold = 0.88) => {
 };
 
 export const inferItemCategory = (items, name, fallback = 'other') => {
+  const preferredCategory = inferPreferredCategory(name);
+  if (preferredCategory !== 'other') return preferredCategory;
+
   const categorizedItems = items.filter((item) => item.category);
   const suggestedMatch = findItemSuggestions(categorizedItems, name, 1)[0];
   const match = suggestedMatch || findSemanticMatch(categorizedItems, name, 0.72);
   return match?.category || fallback;
 };
+
+const CATEGORY_RULES = [
+  {
+    category: 'sauces',
+    terms: [
+      'vinegar', 'essig', 'stock', 'broth', 'bruhe', 'tomato paste',
+      'soy sauce', 'teriyaki', 'balsamico', 'salt', 'salz', 'turmeric', 'kurkuma',
+      'curry powder', 'pepper powder', 'paprika powder', 'chili flake', 'dip', 'agave',
+      'canned tomato', 'tomato stuckig',
+    ],
+  },
+  {
+    category: 'herbs',
+    terms: ['basil', 'parsley', 'coriander', 'mint', 'dill', 'chive', 'rosemary', 'thyme', 'oregano', 'sage'],
+  },
+  {
+    category: 'drinks',
+    terms: ['coffee', 'tea', 'beer', 'juice', 'wine', 'prosecco', 'water', 'lemonade', 'drink'],
+  },
+  {
+    category: 'toiletries',
+    terms: [
+      'vitamin', 'electrolyte', 'shampoo', 'deodorant', 'deo', 'toothpaste',
+      'sunscreen', 'spf', 'razor', 'cotton pad', 'soap', 'nail polish', 'intimo',
+    ],
+  },
+  {
+    category: 'dairy',
+    terms: ['oatly', 'oat milk', 'soy milk', 'almond milk', 'plant milk', 'vegan cheese', 'vegan yogurt'],
+  },
+  {
+    category: 'pasta',
+    terms: [
+      'bread', 'pasta', 'rice', 'oat', 'quinoa', 'gnocchi', 'couscous', 'noodle',
+      'wrap', 'taco', 'pretzel', 'bretzel', 'bagel', 'pastry', 'dough', 'breadcrumb', 'cereal',
+    ],
+  },
+];
+
+export function inferPreferredCategory(name) {
+  const rawName = String(name || '').toLowerCase();
+  const normalizedName = normalizeItemName(name);
+  const containsTerm = (term) => {
+    const normalizedTerm = normalizeItemName(term);
+    return normalizedName === normalizedTerm
+      || normalizedName.startsWith(`${normalizedTerm} `)
+      || normalizedName.endsWith(` ${normalizedTerm}`)
+      || normalizedName.includes(` ${normalizedTerm} `);
+  };
+  const householdContext = [
+    'dish washer', 'dishwasher', 'detergent', 'cleaning', 'laundry', 'washing machine', 'wash powder',
+  ].some(containsTerm);
+  if (householdContext) return 'other';
+  if (containsTerm('coconut milk')) {
+    const cookingContext = /\b(?:can|canned|light|cooking)\b/.test(rawName);
+    return cookingContext ? 'sauces' : 'dairy';
+  }
+
+  const matchingRule = CATEGORY_RULES.find(({ terms }) => (
+    terms.some(containsTerm)
+  ));
+  return matchingRule?.category || 'other';
+}
 
 export const findDuplicateGroups = (items, threshold = 0.88) => {
   const remaining = [...items];
@@ -236,6 +314,19 @@ export const findDuplicateGroups = (items, threshold = 0.88) => {
   return groups;
 };
 
+export const consolidateItemEntries = (entries) => entries.reduce((consolidated, entry) => {
+  const existing = findSemanticMatch(consolidated, entry.name);
+  const entryQuantity = Math.max(1, entry.quantity || 1);
+
+  if (existing) {
+    existing.quantity = Math.max(1, existing.quantity || 1) + entryQuantity;
+  } else {
+    consolidated.push({ ...entry, quantity: entryQuantity });
+  }
+
+  return consolidated;
+}, []);
+
 export const chooseMergedItem = (group) => {
   const sorted = [...group].sort((left, right) => (
     Number(left.isBought) - Number(right.isBought)
@@ -252,17 +343,32 @@ export const chooseMergedItem = (group) => {
   const preferredCategory = Object.entries(categoryCounts)
     .sort((left, right) => right[1] - left[1])[0]?.[0] || keeper.category || 'other';
   const isBought = group.every((item) => item.isBought);
+  const activeItems = group.filter((item) => !item.isBought);
   const mostRecentBoughtItem = [...group]
     .sort((left, right) => timestampValue(right.boughtAt) - timestampValue(left.boughtAt))[0];
+  const preferredEnglishName = sorted.find((item) => !usesGermanAlias(item.name))?.name || keeper.name;
+  const quantity = activeItems.length > 0
+    ? activeItems.reduce((total, item) => total + Math.max(1, item.quantity || 1), 0)
+    : Math.max(1, mostRecentBoughtItem.quantity || 1);
+  const quantitySource = activeItems.length > 0 ? activeItems : [mostRecentBoughtItem];
+  const units = new Set(quantitySource.map((item) => item.quantityUnit || 'x'));
+  const quantityUnit = units.size === 1 ? [...units][0] : (keeper.quantityUnit || 'x');
+  const quantityValue = units.size === 1
+    ? quantitySource.reduce((total, item) => total + Math.max(0.01, Number(item.quantityValue || item.quantity || 1)), 0)
+    : Math.max(0.01, Number(keeper.quantityValue || keeper.quantity || quantity));
 
   return {
     keeper,
     duplicates: group.filter((item) => item.id !== keeper.id),
     data: {
+      name: preferredEnglishName,
       category: preferredCategory,
       isBought,
       boughtAt: isBought ? mostRecentBoughtItem.boughtAt || null : null,
       buyCount: group.reduce((total, item) => total + Math.max(0, item.buyCount || 0), 0),
+      quantity,
+      quantityValue,
+      quantityUnit,
     },
   };
 };
