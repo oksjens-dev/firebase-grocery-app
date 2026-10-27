@@ -44,6 +44,19 @@ test('groups true equivalents without merging a more specific product', () => {
   assert.deepEqual(new Set(groups[0].map((item) => item.id)), new Set(['1', '2']));
 });
 
+test('groups German and English names for the same grocery product', () => {
+  const groups = findDuplicateGroups([
+    { id: 'bananen', name: 'Bananen' },
+    { id: 'bananas', name: 'bananas' },
+    { id: 'koriander', name: 'Koriander' },
+    { id: 'coriander', name: 'coriander' },
+  ]);
+
+  const groupedIds = groups.map((group) => new Set(group.map((item) => item.id)));
+  assert.ok(groupedIds.some((ids) => ids.has('bananen') && ids.has('bananas')));
+  assert.ok(groupedIds.some((ids) => ids.has('koriander') && ids.has('coriander')));
+});
+
 test('merges counts and keeps an active duplicate on the shopping list', () => {
   const merged = chooseMergedItem([
     { id: 'bought', name: 'Courgette', category: 'veggies', isBought: true, buyCount: 2, boughtAt: { seconds: 20 } },
