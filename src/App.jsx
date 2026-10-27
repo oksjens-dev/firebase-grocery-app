@@ -42,6 +42,7 @@ import {
 } from 'firebase/firestore';
 import {
   chooseMergedItem,
+  consolidateItemEntries,
   findDuplicateGroups,
   findItemSuggestions,
   findSemanticMatch,
@@ -496,18 +497,26 @@ export default function App() {
 
   // --- Actions ---
 
-  const addItem = async (name, category = 'other') => {
+  const addItem = async (name, category = 'other', quantity = 1) => {
     if (!name.trim() || !user) return;
+    const requestedQuantity = Math.max(1, quantity || 1);
     try {
       const existingItem = findSemanticMatch(items, name);
       if (existingItem) {
-        if (!existingItem.isBought) return existingItem;
-
         const existingRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', existingItem.id);
+        if (!existingItem.isBought) {
+          await updateDoc(existingRef, {
+            quantity: Math.max(1, existingItem.quantity || 1) + requestedQuantity,
+          });
+          setNewItemName('');
+          return existingItem;
+        }
+
         await updateDoc(existingRef, {
           isBought: false,
           boughtAt: null,
           category: existingItem.category || category,
+          quantity: requestedQuantity,
         });
         setNewItemName('');
         return existingItem;
@@ -518,7 +527,8 @@ export default function App() {
         category,
         isBought: false,
         createdAt: serverTimestamp(),
-        buyCount: 0
+        buyCount: 0,
+        quantity: requestedQuantity,
       });
       setNewItemName('');
     } catch (e) {
@@ -557,7 +567,9 @@ export default function App() {
       await updateDoc(docRef, {
         isBought: !item.isBought,
         boughtAt: !item.isBought ? serverTimestamp() : null,
-        buyCount: !item.isBought ? (item.buyCount || 0) + 1 : item.buyCount
+        buyCount: !item.isBought
+          ? (item.buyCount || 0) + Math.max(1, item.quantity || 1)
+          : item.buyCount
       });
     } catch (e) {
       console.error("Error toggling item", e);
@@ -650,14 +662,10 @@ export default function App() {
 
   const addRecipeToShoppingList = async (recipe, showAlert = true) => {
     if (!user) return;
-    const consolidatedIngredients = recipe.ingredients.reduce((unique, ingredient) => {
-      const alreadyIncluded = Boolean(findSemanticMatch(unique, ingredient.name));
-      if (!alreadyIncluded) unique.push(ingredient);
-      return unique;
-    }, []);
+    const consolidatedIngredients = consolidateItemEntries(recipe.ingredients);
 
     const promises = consolidatedIngredients.map(async (ing) => {
-      await addItem(ing.name, ing.category || 'other');
+      await addItem(ing.name, ing.category || 'other', ing.quantity || 1);
     });
     await Promise.all(promises);
     if (showAlert) alert(`Added ingredients for ${recipe.name} to list!`);
@@ -669,7 +677,8 @@ export default function App() {
       const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id);
       await updateDoc(docRef, {
         isBought: false,
-        boughtAt: null
+        boughtAt: null,
+        quantity: 1,
       });
     } catch (e) {
       console.error("Error moving history item back", e);
@@ -842,7 +851,14 @@ export default function App() {
                 <div className="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-indigo-500 group-hover:border-indigo-400">
                 </div>
                 <div>
-                  <p className="font-medium text-gray-800">{item.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-800">{item.name}</p>
+                    {Math.max(1, item.quantity || 1) > 1 && (
+                      <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                        {Math.max(1, item.quantity || 1)}×
+                      </span>
+                    )}
+                  </div>
                   <CategoryBadge categoryId={item.category} />
                 </div>
               </div>
@@ -880,7 +896,9 @@ export default function App() {
                     className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between opacity-75 hover:opacity-100 transition-all"
                 >
                     <div className="flex items-center gap-3 flex-1">
-                    <div className="line-through text-gray-500 font-medium">{item.name}</div>
+                    <div className="line-through text-gray-500 font-medium">
+                      {item.name}{Math.max(1, item.quantity || 1) > 1 ? ` · ${Math.max(1, item.quantity || 1)}×` : ''}
+                    </div>
                     <CategoryBadge categoryId={item.category} />
                     </div>
                     <button
@@ -1232,9 +1250,18 @@ export default function App() {
               )}
 
               {newItemName.trim() && semanticItemMatch && !semanticItemMatch.isBought && (
-                <div className="bg-emerald-50 text-emerald-800 text-sm p-3 rounded-xl flex items-center gap-2" role="status">
-                  <Check size={18} aria-hidden="true" />
-                  <span><strong>{semanticItemMatch.name}</strong> is already on your list.</span>
+                <div className="bg-emerald-50 text-emerald-800 text-sm p-3 rounded-xl flex items-center justify-between gap-3" role="status">
+                  <span className="flex items-center gap-2">
+                    <Check size={18} aria-hidden="true" />
+                    <span><strong>{semanticItemMatch.name}</strong> is already on your list.</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => submitItem(semanticItemMatch.name, semanticItemMatch.category || 'other')}
+                    className="shrink-0 bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg hover:bg-emerald-800"
+                  >
+                    Add another
+                  </button>
                 </div>
               )}
 

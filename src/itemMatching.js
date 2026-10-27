@@ -236,6 +236,19 @@ export const findDuplicateGroups = (items, threshold = 0.88) => {
   return groups;
 };
 
+export const consolidateItemEntries = (entries) => entries.reduce((consolidated, entry) => {
+  const existing = findSemanticMatch(consolidated, entry.name);
+  const entryQuantity = Math.max(1, entry.quantity || 1);
+
+  if (existing) {
+    existing.quantity = Math.max(1, existing.quantity || 1) + entryQuantity;
+  } else {
+    consolidated.push({ ...entry, quantity: entryQuantity });
+  }
+
+  return consolidated;
+}, []);
+
 export const chooseMergedItem = (group) => {
   const sorted = [...group].sort((left, right) => (
     Number(left.isBought) - Number(right.isBought)
@@ -252,8 +265,12 @@ export const chooseMergedItem = (group) => {
   const preferredCategory = Object.entries(categoryCounts)
     .sort((left, right) => right[1] - left[1])[0]?.[0] || keeper.category || 'other';
   const isBought = group.every((item) => item.isBought);
+  const activeItems = group.filter((item) => !item.isBought);
   const mostRecentBoughtItem = [...group]
     .sort((left, right) => timestampValue(right.boughtAt) - timestampValue(left.boughtAt))[0];
+  const quantity = activeItems.length > 0
+    ? activeItems.reduce((total, item) => total + Math.max(1, item.quantity || 1), 0)
+    : Math.max(1, mostRecentBoughtItem.quantity || 1);
 
   return {
     keeper,
@@ -263,6 +280,7 @@ export const chooseMergedItem = (group) => {
       isBought,
       boughtAt: isBought ? mostRecentBoughtItem.boughtAt || null : null,
       buyCount: group.reduce((total, item) => total + Math.max(0, item.buyCount || 0), 0),
+      quantity,
     },
   };
 };

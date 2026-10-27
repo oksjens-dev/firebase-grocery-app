@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   chooseMergedItem,
+  consolidateItemEntries,
   findDuplicateGroups,
   findItemSuggestions,
   inferItemCategory,
@@ -68,4 +69,23 @@ test('merges counts and keeps an active duplicate on the shopping list', () => {
   assert.equal(merged.data.category, 'veggies');
   assert.equal(merged.data.buyCount, 3);
   assert.deepEqual(merged.duplicates.map((item) => item.id), ['bought']);
+});
+
+test('merges duplicate active rows into one item with a combined quantity', () => {
+  const merged = chooseMergedItem([
+    { id: 'lemon-1', name: 'Lemon', category: 'fruit', isBought: false, quantity: 1, buyCount: 0 },
+    { id: 'lemon-2', name: 'lemon', category: 'fruit', isBought: false, quantity: 1, buyCount: 0 },
+  ]);
+
+  assert.equal(merged.data.quantity, 2);
+});
+
+test('consolidates repeated recipe ingredients and preserves their quantity', () => {
+  const ingredients = consolidateItemEntries([
+    { name: 'Lemon', category: 'fruit' },
+    { name: 'lemons', category: 'fruit' },
+  ]);
+
+  assert.equal(ingredients.length, 1);
+  assert.equal(ingredients[0].quantity, 2);
 });
