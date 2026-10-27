@@ -47,6 +47,7 @@ import {
   findItemSuggestions,
   findSemanticMatch,
   inferItemCategory,
+  inferPreferredCategory,
 } from './itemMatching';
 
 // --- Firebase Configuration ---
@@ -93,12 +94,16 @@ const appId = typeof globalThis.__app_id !== 'undefined' ? globalThis.__app_id :
 // --- Constants ---
 const DEFAULT_CATEGORIES = [
   { id: 'veggies', name: 'Veggies', color: 'bg-green-100 text-green-800' },
+  { id: 'herbs', name: 'Herbs', color: 'bg-emerald-100 text-emerald-800' },
   { id: 'fruit', name: 'Fruit', color: 'bg-rose-100 text-rose-800' },
-  { id: 'dairy', name: 'Dairy & Eggs', color: 'bg-yellow-100 text-yellow-800' },
+  { id: 'dairy', name: 'Dairy, Eggs & Alternatives', color: 'bg-yellow-100 text-yellow-800' },
   { id: 'meat', name: 'Meat & Fish', color: 'bg-red-100 text-red-800' },
-  { id: 'pasta', name: 'Pasta & Rice', color: 'bg-orange-100 text-orange-800' },
+  { id: 'pasta', name: 'Bread, Pasta & Grains', color: 'bg-orange-100 text-orange-800' },
+  { id: 'sauces', name: 'Sauces, Spices & Cans', color: 'bg-amber-100 text-amber-800' },
+  { id: 'drinks', name: 'Drinks', color: 'bg-cyan-100 text-cyan-800' },
   { id: 'sweets', name: 'Sweets & Snacks', color: 'bg-pink-100 text-pink-800' },
   { id: 'household', name: 'Household', color: 'bg-blue-100 text-blue-800' },
+  { id: 'toiletries', name: 'Toiletries & Health', color: 'bg-violet-100 text-violet-800' },
   { id: 'other', name: 'Other', color: 'bg-gray-100 text-gray-800' },
 ];
 
@@ -335,6 +340,7 @@ export default function App() {
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [shoppingSearchTerm, setShoppingSearchTerm] = useState('');
   const isMergingDuplicates = useRef(false);
+  const isMigratingCategories = useRef(false);
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -435,6 +441,55 @@ export default function App() {
 
     mergeDuplicates();
   }, [items, user]);
+
+  useEffect(() => {
+    if (!user || isMigratingCategories.current || (items.length === 0 && recipes.length === 0)) return;
+    if (findDuplicateGroups(items).length > 0) return;
+
+    const itemUpdates = items
+      .map((item) => ({ item, category: inferPreferredCategory(item.name) }))
+      .filter(({ item, category }) => category !== 'other' && category !== item.category);
+
+    const recipeUpdates = recipes.reduce((updates, recipe) => {
+      let changed = false;
+      const ingredients = (recipe.ingredients || []).map((ingredient) => {
+        const category = inferPreferredCategory(ingredient.name);
+        if (category === 'other' || category === ingredient.category) return ingredient;
+        changed = true;
+        return { ...ingredient, category };
+      });
+      if (changed) updates.push({ recipe, ingredients });
+      return updates;
+    }, []);
+
+    if (itemUpdates.length === 0 && recipeUpdates.length === 0) return;
+
+    const migrateCategories = async () => {
+      isMigratingCategories.current = true;
+      try {
+        const batch = writeBatch(db);
+        itemUpdates.forEach(({ item, category }) => {
+          batch.update(
+            doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id),
+            { category }
+          );
+        });
+        recipeUpdates.forEach(({ recipe, ingredients }) => {
+          batch.update(
+            doc(db, 'artifacts', appId, 'public', 'data', 'recipes', recipe.id),
+            { ingredients }
+          );
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error('Error migrating grocery categories', error);
+      } finally {
+        isMigratingCategories.current = false;
+      }
+    };
+
+    migrateCategories();
+  }, [items, recipes, user]);
 
   // --- Derived State ---
   const shoppingList = useMemo(() => items.filter(i => !i.isBought).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds), [items]);

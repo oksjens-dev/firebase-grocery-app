@@ -7,6 +7,7 @@ import {
   findDuplicateGroups,
   findItemSuggestions,
   inferItemCategory,
+  inferPreferredCategory,
   itemSimilarity,
   normalizeItemName,
 } from './itemMatching.js';
@@ -32,6 +33,18 @@ test('remembers the category of a semantically equivalent item', () => {
   ], 'milk');
 
   assert.equal(category, 'dairy');
+});
+
+test('classifies the selected new categories and dairy alternatives', () => {
+  assert.equal(inferPreferredCategory('Fresh parsley'), 'herbs');
+  assert.equal(inferPreferredCategory('Can coconut milk light'), 'sauces');
+  assert.equal(inferPreferredCategory('Oatly'), 'dairy');
+  assert.equal(inferPreferredCategory('Camomile tea'), 'drinks');
+  assert.equal(inferPreferredCategory('Travel shampoo'), 'toiletries');
+  assert.equal(inferPreferredCategory('Wholegrain bread'), 'pasta');
+  assert.equal(inferPreferredCategory('Tomatoes big'), 'other');
+  assert.equal(inferPreferredCategory('Dish washer salt coarse'), 'other');
+  assert.equal(inferPreferredCategory('Detergent dish soap'), 'other');
 });
 
 test('groups true equivalents without merging a more specific product', () => {

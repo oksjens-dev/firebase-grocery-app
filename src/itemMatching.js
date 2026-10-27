@@ -24,6 +24,10 @@ const TOKEN_ALIASES = new Map([
   ['banane', 'banana'],
   ['bananen', 'banana'],
   ['koriander', 'coriander'],
+  ['basilikum', 'basil'],
+  ['petersilie', 'parsley'],
+  ['schnittlauch', 'chive'],
+  ['minze', 'mint'],
   ['apfel', 'apple'],
   ['apfeln', 'apple'],
   ['birne', 'pear'],
@@ -217,11 +221,72 @@ export const findSemanticMatch = (items, name, threshold = 0.88) => {
 };
 
 export const inferItemCategory = (items, name, fallback = 'other') => {
+  const preferredCategory = inferPreferredCategory(name);
+  if (preferredCategory !== 'other') return preferredCategory;
+
   const categorizedItems = items.filter((item) => item.category);
   const suggestedMatch = findItemSuggestions(categorizedItems, name, 1)[0];
   const match = suggestedMatch || findSemanticMatch(categorizedItems, name, 0.72);
   return match?.category || fallback;
 };
+
+const CATEGORY_RULES = [
+  {
+    category: 'sauces',
+    terms: [
+      'coconut milk', 'vinegar', 'essig', 'stock', 'broth', 'bruhe', 'tomato paste',
+      'soy sauce', 'teriyaki', 'balsamico', 'salt', 'salz', 'turmeric', 'kurkuma',
+      'curry powder', 'pepper powder', 'paprika powder', 'chili flake', 'dip', 'agave',
+      'canned tomato', 'tomato stuckig',
+    ],
+  },
+  {
+    category: 'herbs',
+    terms: ['basil', 'parsley', 'coriander', 'mint', 'dill', 'chive', 'rosemary', 'thyme', 'oregano', 'sage'],
+  },
+  {
+    category: 'drinks',
+    terms: ['coffee', 'tea', 'beer', 'juice', 'wine', 'prosecco', 'water', 'lemonade', 'drink'],
+  },
+  {
+    category: 'toiletries',
+    terms: [
+      'vitamin', 'electrolyte', 'shampoo', 'deodorant', 'deo', 'toothpaste',
+      'sunscreen', 'spf', 'razor', 'cotton pad', 'soap', 'nail polish', 'intimo',
+    ],
+  },
+  {
+    category: 'dairy',
+    terms: ['oatly', 'oat milk', 'soy milk', 'almond milk', 'plant milk', 'vegan cheese', 'vegan yogurt'],
+  },
+  {
+    category: 'pasta',
+    terms: [
+      'bread', 'pasta', 'rice', 'oat', 'quinoa', 'gnocchi', 'couscous', 'noodle',
+      'wrap', 'taco', 'pretzel', 'bretzel', 'bagel', 'pastry', 'dough', 'breadcrumb', 'cereal',
+    ],
+  },
+];
+
+export function inferPreferredCategory(name) {
+  const normalizedName = normalizeItemName(name);
+  const containsTerm = (term) => {
+    const normalizedTerm = normalizeItemName(term);
+    return normalizedName === normalizedTerm
+      || normalizedName.startsWith(`${normalizedTerm} `)
+      || normalizedName.endsWith(` ${normalizedTerm}`)
+      || normalizedName.includes(` ${normalizedTerm} `);
+  };
+  const householdContext = [
+    'dish washer', 'dishwasher', 'detergent', 'cleaning', 'laundry', 'washing machine', 'wash powder',
+  ].some(containsTerm);
+  if (householdContext) return 'other';
+
+  const matchingRule = CATEGORY_RULES.find(({ terms }) => (
+    terms.some(containsTerm)
+  ));
+  return matchingRule?.category || 'other';
+}
 
 export const findDuplicateGroups = (items, threshold = 0.88) => {
   const remaining = [...items];
