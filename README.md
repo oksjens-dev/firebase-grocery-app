@@ -1,16 +1,41 @@
-# React + Vite
+# Grocery App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A shared grocery list, recipe collection, meal planner, and shopping history built with React, Vite, Tailwind CSS, and Firebase.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Real-time shared shopping list
+- Smart recently bought suggestions
+- Remembered categories for recurring products
+- Conservative semantic duplicate matching and automatic merging
+- Recipe ingredient consolidation
+- Recipe collection and four-day meal planning
+- Shopping history and purchase analytics
 
-## React Compiler
+## Local development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```sh
+npm install
+npm run dev
+```
 
-## Expanding the ESLint configuration
+Create a `.env.local` file when using a different Firebase project. The supported variables are listed in `.env.example`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Verification
+
+```sh
+npm test
+npm run lint
+npm run build
+```
+
+## Continue in Codex from an iPad
+
+The project must be pushed to a GitHub repository before it can be used in a Codex Cloud environment.
+
+1. Create or connect a GitHub repository for this folder on a computer.
+2. Commit and push the project.
+3. In Codex on the web or desktop, create and publish a cloud environment for that repository.
+4. On the iPad, open Codex, select the published environment, and start or continue tasks.
+
+Do not rely on an uncommitted local folder as the only copy of the project.
