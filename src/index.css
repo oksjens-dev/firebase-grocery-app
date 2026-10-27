@@ -37,3 +37,108 @@ html, body, #root {
 .pt-safe {
   padding-top: env(safe-area-inset-top);
 }
+
+/* System-scheduled dark appearance. The React shell applies theme-dark when
+   iOS/macOS prefers dark, unless the user chooses an explicit override. */
+.grocery-app,
+.grocery-app * {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: ease-out;
+}
+
+.grocery-app.theme-dark {
+  color-scheme: dark;
+  background: #09080c !important;
+  color: #f4eff7 !important;
+}
+
+.grocery-app.theme-dark > div,
+.grocery-app.theme-dark [class~="bg-[#fffaf6]"],
+.grocery-app.theme-dark [class~="bg-[#fffcf8]"] {
+  background-color: #151218 !important;
+}
+
+.grocery-app.theme-dark [class~="bg-white"],
+.grocery-app.theme-dark [class~="bg-white/95"],
+.grocery-app.theme-dark [class~="bg-white/70"] {
+  background-color: #201b24 !important;
+}
+
+.grocery-app.theme-dark [class~="bg-gray-50"],
+.grocery-app.theme-dark [class~="bg-gray-100"],
+.grocery-app.theme-dark [class~="bg-stone-100"] {
+  background-color: #28222c !important;
+}
+
+.grocery-app.theme-dark [class~="bg-purple-50"] {
+  background-color: rgba(140, 101, 227, 0.17) !important;
+}
+
+.grocery-app.theme-dark [class~="bg-purple-100"] {
+  background-color: rgba(140, 101, 227, 0.28) !important;
+}
+
+.grocery-app.theme-dark [class~="bg-indigo-50"],
+.grocery-app.theme-dark [class~="bg-indigo-100"] {
+  background-color: rgba(140, 101, 227, 0.18) !important;
+}
+
+.grocery-app.theme-dark [class~="bg-red-50"] {
+  background-color: rgba(220, 70, 85, 0.15) !important;
+}
+
+.grocery-app.theme-dark [class~="bg-emerald-100"] {
+  background-color: rgba(52, 170, 125, 0.18) !important;
+}
+
+.grocery-app.theme-dark [class~="text-gray-900"],
+.grocery-app.theme-dark [class~="text-gray-800"],
+.grocery-app.theme-dark [class~="text-gray-700"],
+.grocery-app.theme-dark [class~="text-gray-600"] {
+  color: #f1ecf4 !important;
+}
+
+.grocery-app.theme-dark [class~="text-gray-500"],
+.grocery-app.theme-dark [class~="text-gray-400"],
+.grocery-app.theme-dark [class~="text-slate-400"] {
+  color: #aaa1b0 !important;
+}
+
+.grocery-app.theme-dark [class~="text-indigo-900"],
+.grocery-app.theme-dark [class~="text-indigo-700"],
+.grocery-app.theme-dark [class~="text-indigo-600"],
+.grocery-app.theme-dark [class~="text-indigo-500"],
+.grocery-app.theme-dark [class~="text-indigo-400"] {
+  color: #aa8af0 !important;
+}
+
+.grocery-app.theme-dark [class~="border-purple-50"],
+.grocery-app.theme-dark [class~="border-purple-100"],
+.grocery-app.theme-dark [class~="border-gray-50"],
+.grocery-app.theme-dark [class~="border-gray-100"],
+.grocery-app.theme-dark [class~="border-gray-200"],
+.grocery-app.theme-dark [class~="border-slate-200"],
+.grocery-app.theme-dark [class~="border-stone-200"] {
+  border-color: #382f3f !important;
+}
+
+.grocery-app.theme-dark input,
+.grocery-app.theme-dark textarea,
+.grocery-app.theme-dark select {
+  background-color: #28222c !important;
+  border-color: #403647 !important;
+  color: #f4eff7 !important;
+}
+
+.grocery-app.theme-dark input::placeholder,
+.grocery-app.theme-dark textarea::placeholder {
+  color: #817886;
+}
+
+.grocery-app.theme-dark .shadow-sm,
+.grocery-app.theme-dark .shadow-lg,
+.grocery-app.theme-dark .shadow-xl,
+.grocery-app.theme-dark .shadow-2xl {
+  --tw-shadow-color: rgba(0, 0, 0, 0.42);
+}

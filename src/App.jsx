@@ -361,6 +361,8 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 // --- Main App Component ---
 
 export default function App() {
+  const [appearance, setAppearance] = useState(() => localStorage.getItem('grocery-appearance') || 'system');
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [user, setUser] = useState(null);
   const [authError, setAuthError] = useState(null);
   const [isLoadingLong, setIsLoadingLong] = useState(false);
@@ -387,6 +389,19 @@ export default function App() {
   const [recentFilter, setRecentFilter] = useState('all');
   const isMergingDuplicates = useRef(false);
   const isMigratingCategories = useRef(false);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (event) => setSystemDark(event.matches);
+    media.addEventListener('change', handleChange);
+    return () => media.removeEventListener('change', handleChange);
+  }, []);
+
+  const updateAppearance = (value) => {
+    setAppearance(value);
+    localStorage.setItem('grocery-appearance', value);
+  };
+  const isDarkMode = appearance === 'dark' || (appearance === 'system' && systemDark);
 
   // Form State
   const [newItemName, setNewItemName] = useState('');
@@ -731,6 +746,11 @@ export default function App() {
     closeAddItemModal();
   };
 
+  const quickAddItem = async (item) => {
+    await addItem(item.name, item.category || 'other', { value: 1, unit: 'x' });
+    closeAddItemModal();
+  };
+
   const toggleItemStatus = async (item) => {
     if (!user) return;
     try {
@@ -1044,7 +1064,7 @@ export default function App() {
     <div className="space-y-6 pb-12">
       <button onClick={() => setActiveTab('home')} className="text-sm font-bold text-[#7548D8]">← Home</button>
       <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Marie &amp; Jens</p><h1 className="text-3xl font-bold mt-1">Settings</h1></div>
-      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">General</p><div className="rounded-2xl bg-white border border-purple-100"><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Settings size={18} /></span><span><strong className="block">Categories</strong><small className="text-gray-500">{DEFAULT_CATEGORIES.length} categories · English primary</small></span></div></div></section>
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">General</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="p-4 border-b border-purple-50"><div className="flex gap-3 items-center mb-3"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Settings size={18} /></span><span><strong className="block">Appearance</strong><small className="text-gray-500">System follows your iPhone schedule</small></span></div><div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">{['system','light','dark'].map(mode => <button key={mode} onClick={() => updateAppearance(mode)} className={`py-2 rounded-lg text-xs font-bold capitalize ${appearance === mode ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{mode}</button>)}</div></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Package size={18} /></span><span><strong className="block">Categories</strong><small className="text-gray-500">{DEFAULT_CATEGORIES.length} categories · English primary</small></span></div></div></section>
       <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Data</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="flex gap-3 items-center p-4 border-b border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Database size={18} /></span><span><strong className="block">Firebase sync</strong><small className="text-gray-500">Connected · {purchaseEvents.length} recorded check-offs</small></span></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><ShoppingBag size={18} /></span><span><strong className="block">Library</strong><small className="text-gray-500">{items.length} items · {recipes.length} recipes</small></span></div></div></section>
       <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Danger Zone</p><div className="rounded-2xl bg-white border border-red-100 overflow-hidden">{availableYears.map(year => <button key={year} onClick={() => setDeleteYear(year)} className="w-full flex gap-3 items-center p-4 text-left border-b last:border-0 border-red-50"><span className="p-2 rounded-xl bg-red-50 text-red-600"><Trash2 size={18} /></span><span className="flex-1"><strong className="block text-red-700">Delete {year} shopping data</strong><small className="text-gray-500">Removes checked-off items and analytics for this year</small></span><ChevronRight size={18} className="text-red-300" /></button>)}</div></section>
     </div>
@@ -1377,7 +1397,7 @@ export default function App() {
         }
       `}</style>
       {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
-      <div className="fixed inset-0 w-full h-[100dvh] bg-[#eee8e3] font-sans text-gray-900 flex justify-center items-center">
+      <div className={`grocery-app ${isDarkMode ? 'theme-dark' : 'theme-light'} fixed inset-0 w-full h-[100dvh] bg-[#eee8e3] font-sans text-gray-900 flex justify-center items-center`}>
         {/* Mobile Device Simulation/Actual Container */}
         <div className="w-full max-w-md h-full bg-[#fffaf6] shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70">
           
@@ -1435,7 +1455,7 @@ export default function App() {
           <Modal isOpen={isAddItemOpen} onClose={closeAddItemModal} title={selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
             <div className="space-y-4">
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<span className="relative block mt-2"><input name="grocery-item-query" autoComplete="new-password" autoCorrect="off" autoCapitalize="sentences" spellCheck="false" value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="w-full bg-stone-100 p-3.5 pr-11 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" />{newItemName && <button type="button" aria-label="Clear item name" onClick={() => handleNewItemNameChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:text-gray-700"><X size={17} /></button>}</span></label>
-              {recentItemSuggestions.length > 0 && <div className="rounded-2xl border border-purple-100 overflow-hidden">{recentItemSuggestions.map(item => <button key={item.id} onClick={() => { setSelectedItemId(item.id); setNewItemName(item.name); setNewItemCategory(item.category || 'other'); }} className="w-full p-3 flex items-center gap-3 text-left border-b last:border-0 border-purple-50"><CategoryBadge categoryId={item.category} /><strong className="flex-1">{item.name}</strong><small className="text-gray-400">Recent</small></button>)}</div>}
+              {recentItemSuggestions.length > 0 && <div className="rounded-2xl border border-purple-100 overflow-hidden">{recentItemSuggestions.map(item => <div key={item.id} className="flex items-center gap-2 pr-2 border-b last:border-0 border-purple-50"><button onClick={() => { setSelectedItemId(item.id); setNewItemName(item.name); setNewItemCategory(item.category || 'other'); }} className="min-w-0 flex-1 p-3 flex items-center gap-3 text-left"><CategoryBadge categoryId={item.category} /><strong className="flex-1 truncate">{item.name}</strong><small className="text-gray-400">Recent</small></button><button onClick={() => quickAddItem(item)} className="shrink-0 px-2.5 py-2 rounded-xl bg-purple-50 text-[#7548D8] border border-purple-100 text-[10px] font-extrabold">Quick add</button></div>)}</div>}
               {effectiveItemMatch && <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] text-sm flex gap-2"><Check size={17} /> Matched with your item library · {DEFAULT_CATEGORIES.find(category => category.id === effectiveItemMatch.category)?.name || 'Other'}</div>}
               <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
                 {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
