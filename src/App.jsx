@@ -1,3 +1,5 @@
+import SilkWaves from './SilkWaves';
+import './softGlass.css';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   ChefHat,
@@ -10,7 +12,6 @@ import {
   Check,
   X,
   ArrowRight,
-  RefreshCw,
   Utensils,
   Award,
   CalendarPlus,
@@ -1059,32 +1060,22 @@ export default function App() {
     switch (activeTab) {
       case 'shopping':
         return (
-          <div className="py-2 space-y-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Shopping List</h1>
-                <p className="text-sm text-gray-500 mt-1">Grouped by category for a quicker shop.</p>
-              </div>
+          <div className="glass-list-heading">
+            <div className="glass-list-tools">
+              <button type="button" className="glass-circle" aria-label="Back to Home" onClick={() => setActiveTab('home')}>
+                <ChevronRight className="rotate-180" size={22} aria-hidden="true" />
+              </button>
+              <details className="glass-list-search" onToggle={event => {
+                const field = event.currentTarget.querySelector('input');
+                if (event.currentTarget.open) field?.focus();
+                else setShoppingSearchTerm('');
+              }}>
+                <summary className="glass-circle" aria-label="Search shopping list"><Search size={19} aria-hidden="true" /></summary>
+                <input type="search" aria-label="Search items" placeholder="Search items…" value={shoppingSearchTerm} onChange={event => setShoppingSearchTerm(event.target.value)} />
+              </details>
             </div>
-            {/* Added Search Bar for Shopping List */}
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search items..." 
-                value={shoppingSearchTerm}
-                onChange={(e) => setShoppingSearchTerm(e.target.value)}
-                className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
-              />
-              {shoppingSearchTerm && (
-                <button 
-                  onClick={() => setShoppingSearchTerm('')} 
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={18} />
-                </button>
-              )}
-            </div>
+            <h1>Shopping List</h1>
+            <p>{shoppingList.length} {shoppingList.length === 1 ? 'item' : 'items'} left</p>
           </div>
         );
       case 'recipes':
@@ -1164,27 +1155,41 @@ export default function App() {
   // --- Render Content Views ---
 
   const renderHomeView = () => (
-    <div className="space-y-6 pb-24 animate-in fade-in duration-300">
-      <div className="flex items-start justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Household overview</p><h1 className="text-3xl font-bold leading-tight mt-2">{new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'},<br />Marie &amp; Jens</h1></div>
-        <button onClick={() => setActiveTab('settings')} className="p-3 rounded-full bg-white/70 backdrop-blur-xl border border-white shadow-lg text-gray-700"><Settings size={21} /></button>
-      </div>
-      <button type="button" onClick={() => openAddItemModal()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#7548D8] px-4 font-bold text-white">
-        <Plus size={18} aria-hidden="true" /> Add item
-      </button>
-      <div className="rounded-3xl bg-white border border-purple-100 shadow-sm overflow-hidden">
-        <button onClick={() => setActiveTab('shopping')} className="w-full flex items-center gap-3 p-4 text-left bg-[#7548D8] text-white">
-          <span className="p-2 rounded-xl bg-white/15"><ShoppingCart size={19} /></span><span className="flex-1"><strong className="block">Shopping List</strong><small className="text-white/75">{shoppingList.length} {shoppingList.length === 1 ? 'item' : 'items'} left</small></span>
-        </button>
-        {[[recipes.length, 'recipes', ChefHat, 'Recipes', `${recipes.length} saved`], [historyList.length, 'history', Clock3, 'Recent', `${historyList.length} bought items`], [mealPlan.length, 'analytics', Calendar, 'Planning & Analytics', `${mealPlan.length} meals planned`]].map(([, tab, iconComponent, title, subtitle]) => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className="w-full flex items-center gap-3 p-4 text-left border-t border-purple-50">
-            <span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]">{React.createElement(iconComponent, { size: 18 })}</span><span className="flex-1"><strong className="block text-gray-800">{title}</strong><small className="text-gray-500">{subtitle}</small></span><ChevronRight size={18} className="text-gray-400" />
+    <div className="glass-home">
+      <SilkWaves />
+      <div className="glass-home-content">
+        <div className="glass-home-heading">
+          <button type="button" aria-label="Settings" onClick={() => setActiveTab('settings')} className="glass-circle glass-surface">
+            <Settings size={20} aria-hidden="true" />
           </button>
-        ))}
-      </div>
-      <div><div className="flex justify-between items-center mb-3"><h2 className="text-xl font-bold">This month</h2><button onClick={() => setActiveTab('analytics')} className="text-xs font-bold text-[#7548D8]">Analytics</button></div>
-        <button onClick={() => setActiveTab('analytics')} className="w-full flex items-center gap-4 text-left bg-white border border-purple-100 rounded-3xl p-4 shadow-sm">
-          <span className="w-14 h-14 grid place-items-center rounded-2xl bg-purple-50 text-[#7548D8] font-extrabold">{homeInsight.value}</span><span><small className="uppercase tracking-widest text-[10px] font-bold text-[#7548D8]">Daily shopping rhythm</small><strong className="block text-gray-800">{homeInsight.title}</strong><span className="text-sm text-gray-500">{homeInsight.detail}</span></span>
+          <h1>Marie &amp; Jens</h1>
+        </div>
+        <section className="glass-surface glass-shopping-card" aria-label="Shopping">
+          <button type="button" className="glass-shopping-link" onClick={() => setActiveTab('shopping')}>
+            <span className="glass-cart-icon"><ShoppingCart size={27} aria-hidden="true" /></span>
+            <span><strong>Shopping List</strong><small>{shoppingList.length} {shoppingList.length === 1 ? 'item' : 'items'} left</small></span>
+            <ChevronRight size={19} aria-hidden="true" />
+          </button>
+          <button type="button" onClick={() => openAddItemModal()} className="glass-primary">
+            <Plus size={22} aria-hidden="true" /> Add item
+          </button>
+        </section>
+        <div className="glass-shortcuts">
+          {[
+            ['recipes', ChefHat, 'Recipes'],
+            ['history', Clock3, 'Recent'],
+            ['analytics', Calendar, 'Plan'],
+          ].map(([tab, Icon, label]) => (
+            <button key={tab} type="button" className="glass-surface" onClick={() => setActiveTab(tab)}>
+              {React.createElement(Icon, { size: 25, strokeWidth: 1.65, "aria-hidden": true })}
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="glass-surface glass-insight" onClick={() => setActiveTab('analytics')}>
+          <span>{homeInsight.value}</span>
+          <span><strong>{homeInsight.title}</strong><small>{homeInsight.detail}</small></span>
+          <ChevronRight size={16} aria-hidden="true" />
         </button>
       </div>
     </div>
@@ -1201,8 +1206,7 @@ export default function App() {
   );
 
   const renderShoppingListView = () => (
-    <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      {/* Display Filtered Shopping List */}
+    <div className="glass-list">
       {filteredShoppingList.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           {shoppingList.length === 0 ? (
@@ -1216,38 +1220,33 @@ export default function App() {
           )}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="glass-list-groups">
           {DEFAULT_CATEGORIES.map(category => {
             const categoryItems = filteredShoppingList.filter(item => (item.category || 'other') === category.id);
             if (!categoryItems.length) return null;
             const CategoryIcon = category.icon;
-            return <section key={category.id}><div className="flex items-center gap-2 mb-2"><span className="category-accent p-2 rounded-xl border shrink-0"><CategoryIcon size={18} aria-hidden="true" /></span><h2 className="font-bold text-gray-800 flex-1">{category.name}</h2><small className="text-gray-400">{categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}</small></div><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{categoryItems.map(item => (
-            <div key={item.id} className="p-3 border-b last:border-0 border-purple-50 flex items-center justify-between group transition-all">
-              <button
-                type="button"
-                aria-label={`Check off ${item.name}`}
-                onClick={() => checkOffItem(item)}
-                className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-purple-500"
-              >
-                <span className="size-7 shrink-0 rounded-full border-2 border-gray-400" aria-hidden="true" />
-                <span className="break-words font-medium text-gray-800">{item.name}</span>
-              </button>
-              <button type="button" aria-label={`Edit quantity for ${item.name}, currently ${formatQuantity(item)}`} onClick={() => openQuantityEditor(item)} className="min-h-11 min-w-11 rounded-xl bg-purple-50 px-2 text-xs font-bold text-[#7548D8] [.theme-dark_&]:text-purple-300">
-                {formatQuantity(item)}
-              </button>
-              <button
-                aria-label={`Remove ${item.name}`}
-                onClick={() => deleteItem(item.id)}
-                className="text-gray-300 hover:text-red-500 p-2 transition-colors active:scale-95"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>))}</div></section>})}
+            return (
+              <section key={category.id} className="glass-list-card">
+                <h2><CategoryIcon size={18} aria-hidden="true" /> {category.name}</h2>
+                {categoryItems.map(item => (
+                  <div key={item.id} className="glass-list-row">
+                    <button type="button" aria-label={`Check off ${item.name}`} onClick={() => checkOffItem(item)} className="glass-check">
+                      <span aria-hidden="true" />
+                      <span>{item.name}</span>
+                    </button>
+                    <button type="button" aria-label={`Edit quantity for ${item.name}, currently ${formatQuantity(item)}`} onClick={() => openQuantityEditor(item)} className="glass-quantity">
+                      <span>{formatQuantity(item)}</span>
+                    </button>
+                  </div>
+                ))}
+              </section>
+            );
+          })}
         </div>
       )}
       {tripItems.length > 0 && (
-        <details className="rounded-2xl border border-purple-100 bg-white p-4">
-          <summary className="cursor-pointer font-bold">Checked this trip ({tripItems.length})</summary>
+        <details className="glass-trip">
+          <summary><ChevronRight size={19} aria-hidden="true" /> Checked this trip ({tripItems.length})</summary>
           <ul className="mt-2 divide-y divide-purple-50">
             {tripItems.map(item => (
               <li key={item.id} className="flex min-h-11 items-center gap-3">
@@ -1260,7 +1259,6 @@ export default function App() {
           <button type="button" onClick={finishTrip} disabled={isFinishingTrip} className="mt-2 min-h-11 rounded-xl border border-purple-200 px-3 font-bold text-[#7548D8] disabled:opacity-60 [.theme-dark_&]:text-purple-300">Finish trip</button>
         </details>
       )}
-      <button onClick={() => openAddItemModal()} className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 flex items-center gap-2 px-5 py-3 rounded-full bg-[#7548D8]/90 backdrop-blur-xl text-white font-bold shadow-xl border border-white/30"><Plus size={18} /> Add Item</button>
     </div>
   );
 
@@ -1546,16 +1544,16 @@ export default function App() {
       {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
       <div className={`grocery-app ${isDarkMode ? 'theme-dark' : 'theme-light'} fixed inset-0 w-full h-[100dvh] bg-[#eee8e3] font-sans text-gray-900 flex justify-center items-center`}>
         {/* Mobile Device Simulation/Actual Container */}
-        <div className="w-full max-w-md h-full bg-[#fffaf6] shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70">
+        <div className={`grocery-shell grocery-${activeTab} w-full max-w-md h-full bg-[#fffaf6] shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70`}>
           
           {/* Status Bar */}
-          <div className="h-6 bg-white w-full shrink-0 sm:block hidden"></div>
+
 
           {/* Fixed Top Header (Outside ScrollView) */}
-          {!['home','settings'].includes(activeTab) && <div className="px-4 pt-2 pb-2 bg-[#fffaf6] z-20 shrink-0 border-b border-purple-50">{renderHeader()}</div>}
+          {!['home','settings'].includes(activeTab) && <div className={activeTab === 'shopping' ? 'glass-list-header' : 'px-4 pt-2 pb-2 bg-[#fffaf6] z-20 shrink-0 border-b border-purple-50'}>{renderHeader()}</div>}
 
           {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
-          <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
+          <main key={activeTab} className={`flex-1 min-h-0 overflow-y-auto relative custom-scrollbar ${activeTab === 'home' || activeTab === 'shopping' ? '' : 'p-4 pt-safe pb-24'}`}>
             {activeTab === 'home' && renderHomeView()}
             {activeTab === 'shopping' && (
               <>
@@ -1575,40 +1573,29 @@ export default function App() {
             {activeTab === 'settings' && renderSettingsView()}
           </main>
 
-          {/* Fixed Navigation Bar */}
-          {activeTab !== 'settings' && <nav className="absolute bottom-0 left-0 right-0 z-50">
-            <div className="bg-white/95 backdrop-blur-2xl border-t border-slate-200 pb-safe transition-all shadow-[0_-5px_10px_rgba(0,0,0,0.02)]">
-              <div className="flex justify-around items-center h-20 px-1 pb-2">
-                <button onClick={() => setActiveTab('home')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                  <div className={`px-3 py-1.5 rounded-full transition-all ${activeTab === 'home' ? 'bg-purple-100 text-[#7548D8]' : 'text-slate-400'}`}><Home size={22} /></div><span className={`text-[9px] font-semibold mt-1 ${activeTab === 'home' ? 'text-[#7548D8]' : 'text-slate-400'}`}>Home</span>
-                </button>
-                <button onClick={() => setActiveTab('shopping')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                  <div className={`px-3 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'shopping' ? 'bg-purple-100 text-[#7548D8]' : 'text-slate-400'}`}>
-                    <ShoppingCart size={22} strokeWidth={activeTab === 'shopping' ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[9px] font-semibold mt-1 ${activeTab === 'shopping' ? 'text-[#7548D8]' : 'text-slate-400'}`}>List</span>
-                </button>
-                <button onClick={() => setActiveTab('recipes')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                  <div className={`px-3 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'recipes' ? 'bg-purple-100 text-[#7548D8]' : 'text-slate-400'}`}>
-                    <ChefHat size={22} strokeWidth={activeTab === 'recipes' ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[9px] font-semibold mt-1 ${activeTab === 'recipes' ? 'text-[#7548D8]' : 'text-slate-400'}`}>Recipes</span>
-                </button>
-                <button onClick={() => setActiveTab('history')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                   <div className={`px-5 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'history' ? 'bg-indigo-100 text-indigo-600 translate-y-0' : 'text-slate-400 group-hover:bg-slate-100 group-active:scale-95'}`}>
-                    <RefreshCw size={24} strokeWidth={activeTab === 'history' ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[10px] font-semibold mt-1 transition-all duration-300 ${activeTab === 'history' ? 'text-indigo-600' : 'text-slate-400'}`}>Recent</span>
-                </button>
-                <button onClick={() => setActiveTab('analytics')} className="flex-1 flex flex-col items-center justify-center group outline-none">
-                  <div className={`px-5 py-1.5 rounded-full transition-all duration-300 ease-in-out ${activeTab === 'analytics' ? 'bg-indigo-100 text-indigo-600 translate-y-0' : 'text-slate-400 group-hover:bg-slate-100 group-active:scale-95'}`}>
-                    <PieChart size={24} strokeWidth={activeTab === 'analytics' ? 2.5 : 2} />
-                  </div>
-                  <span className={`text-[10px] font-semibold mt-1 transition-all duration-300 ${activeTab === 'analytics' ? 'text-indigo-600' : 'text-slate-400'}`}>Plan</span>
-                </button>
-              </div>
+          {activeTab === 'shopping' && (
+            <div className="glass-list-action">
+              <button type="button" onClick={() => openAddItemModal()} className="glass-primary">
+                <Plus size={22} aria-hidden="true" /> Add item
+              </button>
             </div>
-          </nav>}
+          )}
+          {activeTab !== 'settings' && (
+            <nav aria-label="Main navigation" className="glass-nav">
+              {[
+                ['home', Home, 'Home'],
+                ['shopping', ShoppingCart, 'List'],
+                ['recipes', ChefHat, 'Recipes'],
+                ['history', Clock3, 'Recent'],
+                ['analytics', Calendar, 'Plan'],
+              ].map(([tab, Icon, label]) => (
+                <button key={tab} type="button" aria-current={activeTab === tab ? 'page' : undefined} onClick={() => setActiveTab(tab)}>
+                  {React.createElement(Icon, { size: 22, strokeWidth: activeTab === tab ? 2.35 : 1.7, "aria-hidden": true })}
+                  <span>{label}</span>
+                </button>
+              ))}
+            </nav>
+          )}
 
           <Modal isOpen={isAddItemOpen} onClose={isSavingItem ? undefined : closeAddItemModal} title={editingQuantity ? `Edit quantity · ${editingQuantity.name}` : selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
             <fieldset disabled={isSavingItem} className="min-w-0 space-y-4">
@@ -1664,12 +1651,18 @@ export default function App() {
               {!editingQuantity && hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="category-accent p-2 rounded-xl border"><Icon size={18} aria-hidden="true" /></span>{category.name}</button>})}</div></div>}
               {itemSaveError && <p role="alert" className="text-sm text-gray-600">{editingQuantity ? 'Couldn’t save the quantity. Check the amount and try again.' : 'Couldn’t add the item. Please try again.'}</p>}
               {editingQuantity ? (
-                <button type="button" onClick={saveQuantity} className="w-full rounded-2xl bg-[#7548D8] p-4 font-bold text-white">Save quantity</button>
+                <button type="button" onClick={saveQuantity} className="glass-primary">Save quantity</button>
               ) : (
                 <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
                   <input type="checkbox" className="size-5 accent-[#7548D8]" checked={keepAdding} onChange={event => setKeepAdding(event.target.checked)} />
                   Keep adding after each item
                 </label>
+              )}
+              {editingQuantity && (
+                <button type="button" className="min-h-11 w-full font-semibold text-red-700 [.theme-dark_&]:text-red-300" onClick={() => {
+                  deleteItem(editingQuantity.id);
+                  closeAddItemModal();
+                }}>Remove from list</button>
               )}
               {!editingQuantity && hasItemName && !selectedItem && (
                 <button type="button" onClick={() => submitItem({ keepSeparate: hasItemMatch })} className="w-full break-words bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200 disabled:opacity-60">
