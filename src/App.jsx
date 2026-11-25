@@ -176,12 +176,10 @@ const CategoryBadge = ({ categoryId, compact = false }) => {
   const defaultCat = DEFAULT_CATEGORIES.find(c => c.id === categoryId);
   const label = defaultCat?.name || categoryId || 'Other';
   const Icon = defaultCat?.icon || Package;
-  const appearance = compact
-    ? 'min-w-0 max-w-[38%] bg-emerald-100 text-emerald-800 [.theme-dark_&]:text-emerald-300 border-transparent'
-    : 'max-w-[180px] bg-purple-50 text-[#7548D8] border-purple-100';
+  const width = compact ? 'min-w-0 max-w-[38%]' : 'max-w-[180px]';
 
   return (
-    <span title={compact ? label : undefined} className={`inline-flex items-center gap-1 align-middle border text-xs px-2 py-1 rounded-full font-medium ${appearance}`}>
+    <span title={label} className={`category-accent inline-flex items-center gap-1 align-middle border text-xs px-2 py-1 rounded-full font-medium ${width}`}>
       <Icon size={12} className="shrink-0" aria-hidden="true" />
       <span className="truncate">{label}</span>
     </span>
@@ -1103,7 +1101,7 @@ export default function App() {
             const categoryItems = filteredShoppingList.filter(item => (item.category || 'other') === category.id);
             if (!categoryItems.length) return null;
             const CategoryIcon = category.icon;
-            return <section key={category.id}><div className="flex items-center gap-2 mb-2"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><CategoryIcon size={18} /></span><h2 className="font-bold text-gray-800 flex-1">{category.name}</h2><small className="text-gray-400">{categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}</small></div><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{categoryItems.map(item => (
+            return <section key={category.id}><div className="flex items-center gap-2 mb-2"><span className="category-accent p-2 rounded-xl border shrink-0"><CategoryIcon size={18} aria-hidden="true" /></span><h2 className="font-bold text-gray-800 flex-1">{category.name}</h2><small className="text-gray-400">{categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}</small></div><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{categoryItems.map(item => (
             <div key={item.id} className="p-3 border-b last:border-0 border-purple-50 flex items-center justify-between group transition-all">
               <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleItemStatus(item)}>
                 <div className="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-indigo-500 group-hover:border-indigo-400">
@@ -1150,17 +1148,17 @@ export default function App() {
             {filteredHistory.map(item => (
                 <div
                     key={item.id}
-                    className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between opacity-75 hover:opacity-100 transition-all"
+                    className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between gap-2"
                 >
-                    <div className="flex items-center gap-3 flex-1">
-                    <div className="line-through text-gray-500 font-medium">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="min-w-0 break-words line-through text-gray-500 font-medium">
                       {item.name} · {formatQuantity(item)}
                     </div>
                     <CategoryBadge categoryId={item.category} />
                     </div>
                     <button
                     onClick={() => addHistoryItemBack(item)}
-                    className="text-indigo-600 bg-indigo-50 p-2 rounded-full hover:bg-indigo-100 transition-colors active:scale-95"
+                    className="shrink-0 text-indigo-600 bg-indigo-50 p-2 rounded-full hover:bg-indigo-100 transition-colors active:scale-95"
                     >
                     <Plus size={18} />
                     </button>
@@ -1488,7 +1486,7 @@ export default function App() {
                         type="button"
                         aria-label={`Quick add ${item.name}`}
                         onClick={() => submitItem({ item, quantity: { value: 1, unit: 'x' } })}
-                        className="shrink-0 min-h-11 my-1 px-2.5 py-2 rounded-xl bg-purple-50 text-[#7548D8] [.theme-dark_&]:text-purple-300 border border-purple-100 text-[10px] font-extrabold"
+                        className="shrink-0 min-h-11 my-1 px-2.5 py-2 rounded-xl text-[#7548D8] [.theme-dark_&]:text-purple-300 border border-[#7548D8] [.theme-dark_&]:border-purple-400 hover:bg-purple-50 text-[10px] font-extrabold"
                       >
                         Quick add
                       </button>
@@ -1496,11 +1494,16 @@ export default function App() {
                   ))}
                 </div>
               )}
-              {effectiveItemMatch && <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] text-sm flex gap-2"><Check size={17} /> Matched with your item library · {DEFAULT_CATEGORIES.find(category => category.id === effectiveItemMatch.category)?.name || 'Other'}</div>}
+              {effectiveItemMatch && (
+                <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] [.theme-dark_&]:text-purple-300 text-sm flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2"><Check size={17} aria-hidden="true" /> Matched with your item library</span>
+                  <CategoryBadge categoryId={effectiveItemMatch.category} />
+                </div>
+              )}
               <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
                 {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
               </div>
-              {hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Icon size={18} /></span>{category.name}</button>})}</div></div>}
+              {hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="category-accent p-2 rounded-xl border"><Icon size={18} aria-hidden="true" /></span>{category.name}</button>})}</div></div>}
               {itemSaveError && <p role="alert" className="text-sm text-gray-600">Couldn’t add the item. Please try again.</p>}
               {hasItemName && !selectedItem && (
                 <button type="button" onClick={() => submitItem({ keepSeparate: hasItemMatch })} className="w-full break-words bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200 disabled:opacity-60">

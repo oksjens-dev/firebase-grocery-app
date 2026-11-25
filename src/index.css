@@ -38,6 +38,18 @@ html, body, #root {
   padding-top: env(safe-area-inset-top);
 }
 
+.category-accent {
+  color: #1954d1;
+  background-color: #e8f0ff;
+  border-color: #cbdcff;
+}
+
+.grocery-app.theme-dark .category-accent {
+  color: #a8c5ff;
+  background-color: #1d315c;
+  border-color: #395689;
+}
+
 /* System-scheduled dark appearance. The React shell applies theme-dark when
    iOS/macOS prefers dark, unless the user chooses an explicit override. */
 .grocery-app,
