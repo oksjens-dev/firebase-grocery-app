@@ -160,7 +160,7 @@ const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
         {bottomSheet && <button type="button" aria-label="Resize Add Item sheet" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} className="h-7 shrink-0 touch-none cursor-ns-resize"><span className="block w-10 h-1.5 bg-gray-300 rounded-full mx-auto" /></button>}
         <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
+          <button onClick={onClose} disabled={!onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
             <X size={20} />
           </button>
         </div>
@@ -172,14 +172,18 @@ const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
   );
 };
 
-const CategoryBadge = ({ categoryId }) => {
+const CategoryBadge = ({ categoryId, compact = false }) => {
   const defaultCat = DEFAULT_CATEGORIES.find(c => c.id === categoryId);
-  const label = defaultCat ? defaultCat.name : categoryId;
+  const label = defaultCat?.name || categoryId || 'Other';
   const Icon = defaultCat?.icon || Package;
+  const appearance = compact
+    ? 'min-w-0 max-w-[38%] bg-emerald-100 text-emerald-800 [.theme-dark_&]:text-emerald-300 border-transparent'
+    : 'max-w-[180px] bg-purple-50 text-[#7548D8] border-purple-100';
 
   return (
-    <span className="text-xs px-2 py-1 rounded-full font-medium bg-purple-50 text-[#7548D8] border border-purple-100 truncate max-w-[180px] inline-flex items-center gap-1 align-middle">
-      <Icon size={12} /> {label}
+    <span title={compact ? label : undefined} className={`inline-flex items-center gap-1 align-middle border text-xs px-2 py-1 rounded-full font-medium ${appearance}`}>
+      <Icon size={12} className="shrink-0" aria-hidden="true" />
+      <span className="truncate">{label}</span>
     </span>
   );
 };
@@ -411,6 +415,8 @@ export default function App() {
   const [customQuantityOpen, setCustomQuantityOpen] = useState(false);
   const [customQuantity, setCustomQuantity] = useState('1');
   const [customUnit, setCustomUnit] = useState('x');
+  const [isSavingItem, setIsSavingItem] = useState(false);
+  const [itemSaveError, setItemSaveError] = useState(false);
   const [deleteYear, setDeleteYear] = useState(null);
   
   const [newRecipeName, setNewRecipeName] = useState('');
@@ -611,7 +617,8 @@ export default function App() {
     return itemSimilarity(recentItemSuggestions[0].name, newItemName) >= 0.78 ? recentItemSuggestions[0] : null;
   }, [recentItemSuggestions, newItemName]);
   const effectiveItemMatch = semanticItemMatch || autoRecentMatch;
-  const isNewItem = Boolean(newItemName.trim() && !effectiveItemMatch && recentItemSuggestions.length === 0);
+  const hasItemName = Boolean(newItemName.trim());
+  const hasItemMatch = Boolean(effectiveItemMatch || recentItemSuggestions.length);
   const analyticsEvents = useMemo(() => purchaseEvents.length ? purchaseEvents : historyList.map(item => ({
     id: `legacy-${item.id}`,
     checkedAt: item.boughtAt,
@@ -652,13 +659,13 @@ export default function App() {
 
   // --- Actions ---
 
-  const addItem = async (name, category = 'other', quantity = { value: 1, unit: 'x' }) => {
-    if (!name.trim() || !user) return;
+  const addItem = async (name, category = 'other', quantity = { value: 1, unit: 'x' }, { item, keepSeparate = false } = {}) => {
+    if (!name.trim() || !user) return false;
     const requested = typeof quantity === 'number'
       ? { value: Math.max(1, quantity), unit: 'x' }
       : { value: Math.max(0.01, Number(quantity.value) || 1), unit: quantity.unit || 'x' };
     try {
-      const existingItem = findSemanticMatch(items, name);
+      const existingItem = keepSeparate ? null : item || findSemanticMatch(items, name);
       if (existingItem) {
         const existingRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', existingItem.id);
         if (!existingItem.isBought) {
@@ -668,8 +675,7 @@ export default function App() {
             quantityValue: sameUnit ? Math.max(1, existingItem.quantityValue || existingItem.quantity || 1) + requested.value : requested.value,
             quantityUnit: requested.unit,
           });
-          setNewItemName('');
-          return existingItem;
+          return true;
         }
 
         await updateDoc(existingRef, {
@@ -680,8 +686,7 @@ export default function App() {
           quantityValue: requested.value,
           quantityUnit: requested.unit,
         });
-        setNewItemName('');
-        return existingItem;
+        return true;
       }
 
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'items'), {
@@ -693,10 +698,12 @@ export default function App() {
         quantity: requested.unit === 'x' ? requested.value : 1,
         quantityValue: requested.value,
         quantityUnit: requested.unit,
+        ...(keepSeparate ? { keepSeparate: true } : {}),
       });
-      setNewItemName('');
+      return true;
     } catch (e) {
       console.error("Error adding item", e);
+      return false;
     }
   };
 
@@ -708,6 +715,7 @@ export default function App() {
   const handleNewItemNameChange = (value) => {
     setNewItemName(value);
     setSelectedItemId(null);
+    setItemSaveError(false);
     if (value.trim()) {
       setNewItemCategory(inferItemCategory(itemCategoryExamples, value));
     }
@@ -715,6 +723,7 @@ export default function App() {
 
   const closeAddItemModal = () => {
     setIsAddItemOpen(false);
+    setItemSaveError(false);
     setNewItemName('');
     setNewItemCategory('other');
     setSelectedItemId(null);
@@ -725,6 +734,7 @@ export default function App() {
   };
 
   const openAddItemModal = (item = null) => {
+    setItemSaveError(false);
     setSelectedItemId(item?.id || null);
     setNewItemName(item?.name || '');
     setNewItemCategory(item?.category || 'other');
@@ -740,15 +750,17 @@ export default function App() {
     return { '1': { value: 1, unit: 'x' }, '500 g': { value: 500, unit: 'g' }, '1 kg': { value: 1, unit: 'kg' }, '1 L': { value: 1, unit: 'L' } }[quantityPreset];
   };
 
-  const submitItem = async (name = effectiveItemMatch?.name || newItemName, category = effectiveItemMatch?.category || newItemCategory) => {
-    if (!name.trim()) return;
-    await addItem(name, category, currentQuantity());
-    closeAddItemModal();
-  };
+  const submitItem = async ({ item, quantity = currentQuantity(), keepSeparate = false } = {}) => {
+    const name = item?.name || newItemName;
+    if (!name.trim() || isSavingItem) return;
 
-  const quickAddItem = async (item) => {
-    await addItem(item.name, item.category || 'other', { value: 1, unit: 'x' });
-    closeAddItemModal();
+    setIsSavingItem(true);
+    setItemSaveError(false);
+    const category = item ? item.category || 'other' : newItemCategory;
+    const saved = await addItem(name, category, quantity, { item, keepSeparate });
+    setIsSavingItem(false);
+    if (saved) closeAddItemModal();
+    else setItemSaveError(true);
   };
 
   const toggleItemStatus = async (item) => {
@@ -1452,18 +1464,59 @@ export default function App() {
             </div>
           </nav>}
 
-          <Modal isOpen={isAddItemOpen} onClose={closeAddItemModal} title={selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
-            <div className="space-y-4">
+          <Modal isOpen={isAddItemOpen} onClose={isSavingItem ? undefined : closeAddItemModal} title={selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
+            <fieldset disabled={isSavingItem} className="min-w-0 space-y-4">
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<span className="relative block mt-2"><input name="grocery-item-query" autoComplete="new-password" autoCorrect="off" autoCapitalize="sentences" spellCheck="false" value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="w-full bg-stone-100 p-3.5 pr-11 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" />{newItemName && <button type="button" aria-label="Clear item name" onClick={() => handleNewItemNameChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:text-gray-700"><X size={17} /></button>}</span></label>
-              {recentItemSuggestions.length > 0 && <div className="rounded-2xl border border-purple-100 overflow-hidden">{recentItemSuggestions.map(item => <div key={item.id} className="flex items-center gap-2 pr-2 border-b last:border-0 border-purple-50"><button onClick={() => { setSelectedItemId(item.id); setNewItemName(item.name); setNewItemCategory(item.category || 'other'); }} className="min-w-0 flex-1 p-3 flex items-center gap-3 text-left"><CategoryBadge categoryId={item.category} /><strong className="flex-1 truncate">{item.name}</strong><small className="text-gray-400">Recent</small></button><button onClick={() => quickAddItem(item)} className="shrink-0 px-2.5 py-2 rounded-xl bg-purple-50 text-[#7548D8] border border-purple-100 text-[10px] font-extrabold">Quick add</button></div>)}</div>}
+              {recentItemSuggestions.length > 0 && (
+                <div className="rounded-2xl border border-purple-100 overflow-hidden">
+                  {recentItemSuggestions.map(item => (
+                    <div key={item.id} className="flex items-center gap-2 pr-2 border-b last:border-0 border-purple-50">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedItemId(item.id);
+                          setNewItemName(item.name);
+                          setNewItemCategory(item.category || 'other');
+                          setItemSaveError(false);
+                        }}
+                        className="min-h-12 min-w-0 flex-1 px-3 py-2 flex items-center gap-2 text-left"
+                      >
+                        <strong className="min-w-0 flex-1 break-words">{item.name}</strong>
+                        <CategoryBadge categoryId={item.category} compact />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Quick add ${item.name}`}
+                        onClick={() => submitItem({ item, quantity: { value: 1, unit: 'x' } })}
+                        className="shrink-0 min-h-11 my-1 px-2.5 py-2 rounded-xl bg-purple-50 text-[#7548D8] [.theme-dark_&]:text-purple-300 border border-purple-100 text-[10px] font-extrabold"
+                      >
+                        Quick add
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               {effectiveItemMatch && <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] text-sm flex gap-2"><Check size={17} /> Matched with your item library · {DEFAULT_CATEGORIES.find(category => category.id === effectiveItemMatch.category)?.name || 'Other'}</div>}
               <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
                 {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
               </div>
-              {isNewItem && <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-50 text-[#7548D8] text-xs font-bold"><Plus size={14} /> Add new item</div>}
-              {isNewItem && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Icon size={18} /></span>{category.name}</button>})}</div></div>}
-              {(effectiveItemMatch || isNewItem) && <button onClick={() => submitItem()} className="w-full bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200">Save to Shopping List</button>}
-            </div>
+              {hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Icon size={18} /></span>{category.name}</button>})}</div></div>}
+              {itemSaveError && <p role="alert" className="text-sm text-gray-600">Couldn’t add the item. Please try again.</p>}
+              {hasItemName && !selectedItem && (
+                <button type="button" onClick={() => submitItem({ keepSeparate: hasItemMatch })} className="w-full break-words bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200 disabled:opacity-60">
+                  Add “{newItemName.trim()}” as a new item
+                </button>
+              )}
+              {effectiveItemMatch && (
+                <button
+                  type="button"
+                  onClick={() => submitItem({ item: effectiveItemMatch })}
+                  className={`w-full break-words p-4 rounded-2xl font-bold disabled:opacity-60 ${selectedItem ? 'bg-[#7548D8] text-white shadow-lg shadow-purple-200' : 'bg-purple-50 text-[#7548D8] [.theme-dark_&]:text-purple-300 border border-purple-100'}`}
+                >
+                  {selectedItem ? 'Save to Shopping List' : `Add “${effectiveItemMatch.name}” from your library`}
+                </button>
+              )}
+            </fieldset>
           </Modal>
 
           <Modal isOpen={isAddRecipeOpen} onClose={() => setIsAddRecipeOpen(false)} title="New Recipe">

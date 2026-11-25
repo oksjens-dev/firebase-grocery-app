@@ -294,7 +294,7 @@ export function inferPreferredCategory(name) {
 }
 
 export const findDuplicateGroups = (items, threshold = 0.88) => {
-  const remaining = [...items];
+  const remaining = items.filter((item) => !item.keepSeparate);
   const groups = [];
 
   while (remaining.length > 0) {
