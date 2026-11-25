@@ -429,8 +429,10 @@ export default function App() {
   const isDarkMode = appearance === 'dark' || (appearance === 'system' && systemDark);
 
   useEffect(() => {
-    const themeColor = document.querySelector('meta[name="theme-color"]');
-    themeColor?.setAttribute('content', isDarkMode ? '#251b2f' : '#f2eaf8');
+    const root = document.documentElement;
+    root.dataset.groceryTheme = isDarkMode ? 'dark' : 'light';
+    const edgeColor = getComputedStyle(root).getPropertyValue('--grocery-edge-color').trim();
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', edgeColor);
   }, [isDarkMode]);
 
   // Form State
@@ -1535,7 +1537,7 @@ export default function App() {
         }
       `}</style>
       {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
-      <div className={`grocery-app ${isDarkMode ? 'theme-dark' : 'theme-light'} fixed inset-0 w-full h-[100dvh] bg-[#eee8e3] font-sans text-gray-900 flex justify-center items-center`}>
+      <div className={`grocery-app ${isDarkMode ? 'theme-dark' : 'theme-light'} relative w-full h-[100dvh] font-sans text-gray-900 flex justify-center items-center`}>
         {/* Mobile Device Simulation/Actual Container */}
         <div className={`grocery-shell grocery-${activeTab} w-full max-w-md h-full shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70`}>
           

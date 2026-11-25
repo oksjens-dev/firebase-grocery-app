@@ -9,12 +9,29 @@
   line-height: 1.5;
   font-weight: 400;
 
-  /* Enforce Light Mode for system UI elements (status bar etc) to match the app */
+  --grocery-edge-color: #f2eaf8;
   color-scheme: light;
 
   /* Font smoothing makes text look thinner and crisper on iOS */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-grocery-theme="dark"] {
+  --grocery-edge-color: #251b2f;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-grocery-theme]) {
+    --grocery-edge-color: #251b2f;
+    color-scheme: dark;
+  }
+}
+
+/* iOS can paint the native status area from the document background. */
+html, body {
+  background-color: var(--grocery-edge-color);
 }
 
 /* CRITICAL FIX: Reset margins and force full height */
@@ -24,7 +41,6 @@ html, body, #root {
   margin: 0;
   padding: 0;
   overflow: hidden; /* Prevent scrolling on the body, handle it in App.jsx */
-  background-color: #f9fafb; /* gray-50 to match app theme */
   -webkit-tap-highlight-color: transparent; /* Removes gray tap highlight on iOS */
   display: block; 
 }
@@ -59,9 +75,9 @@ html, body, #root {
   transition-timing-function: ease-out;
 }
 
+.grocery-app { background-color: var(--grocery-edge-color); }
+
 .grocery-app.theme-dark {
-  color-scheme: dark;
-  background: #09080c !important;
   color: #f4eff7 !important;
 }
 

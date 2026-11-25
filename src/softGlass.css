@@ -19,6 +19,9 @@
   --glass-divider: rgb(82 47 110 / 13%);
   --glass-gutter: clamp(16px, 4.8vw, 24px);
   --glass-safe-top: env(safe-area-inset-top, 0px);
+  --glass-edge-fade: calc(var(--glass-safe-top) + 64px);
+  --glass-page-color: #fffbf8;
+  --glass-page-wash: #eaddfa;
   --glass-gutter-start: max(var(--glass-gutter), env(safe-area-inset-left, 0px));
   --glass-gutter-end: max(var(--glass-gutter), env(safe-area-inset-right, 0px));
   --glass-focus: #6b32c3;
@@ -28,7 +31,11 @@
   --glass-dock-space: calc(66px + var(--glass-dock-bottom));
   color: var(--glass-ink);
   isolation: isolate;
-  background: radial-gradient(ellipse at 88% 0%, #eaddfa 0, transparent 48%), #fffbf8;
+  background-color: var(--grocery-edge-color);
+  background-image:
+    linear-gradient(to bottom, var(--grocery-edge-color) var(--glass-safe-top), transparent var(--glass-edge-fade)),
+    radial-gradient(ellipse at 88% 0%, var(--glass-page-wash), transparent 48%),
+    linear-gradient(var(--glass-page-color), var(--glass-page-color));
 }
 
 .theme-dark .grocery-shell {
@@ -45,7 +52,8 @@
   --glass-focus: #dfc2ff;
   --glass-inset-tint: rgb(88 61 114 / 32%);
   --glass-inset-edge: rgb(232 208 255 / 17%);
-  background: radial-gradient(ellipse at 88% 0%, #38244f 0, transparent 52%), #1b1422;
+  --glass-page-color: #1b1422;
+  --glass-page-wash: #38244f;
 }
 
 @supports (-webkit-touch-callout: none) {
@@ -56,24 +64,6 @@
       border: 0;
       border-radius: 0;
       box-shadow: none;
-    }
-
-    /* Keep the system glyphs readable over the live gradient and waves. */
-    .grocery-shell::after {
-      content: '';
-      position: absolute;
-      inset: 0 0 auto;
-      z-index: 20;
-      height: calc(var(--glass-safe-top) * 1.18);
-      background: linear-gradient(
-        to bottom,
-        rgb(75 42 112 / 70%),
-        rgb(75 42 112 / 66%) 38%,
-        rgb(75 42 112 / 45%) 66%,
-        rgb(75 42 112 / 14%) 88%,
-        transparent
-      );
-      pointer-events: none;
     }
   }
 }
@@ -97,8 +87,8 @@
   height: clamp(580px, 84dvh, 790px);
   overflow: hidden;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(#000 0 63%, transparent 98%);
-  mask-image: linear-gradient(#000 0 63%, transparent 98%);
+  -webkit-mask-image: linear-gradient(transparent var(--glass-safe-top), #000 var(--glass-edge-fade) 63%, transparent 98%);
+  mask-image: linear-gradient(transparent var(--glass-safe-top), #000 var(--glass-edge-fade) 63%, transparent 98%);
 }
 
 .silk-canvas,
