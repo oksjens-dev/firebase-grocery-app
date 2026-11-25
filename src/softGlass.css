@@ -67,7 +67,18 @@
   mask-image: linear-gradient(#000 0 63%, transparent 98%);
 }
 
-.silk-waves svg { width: 100%; height: 100%; display: block; }
+.silk-canvas,
+.silk-waves svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.silk-canvas { visibility: hidden; }
+.silk-canvas[data-ready] { visibility: visible; }
+.silk-canvas[data-ready] + svg { display: none; }
 .theme-dark .silk-waves { filter: brightness(.64) saturate(1.14); }
 
 .silk-fold,
