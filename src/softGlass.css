@@ -68,7 +68,7 @@
 }
 
 .silk-canvas,
-.silk-waves svg {
+.silk-still {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -78,22 +78,10 @@
 
 .silk-canvas { visibility: hidden; }
 .silk-canvas[data-ready] { visibility: visible; }
-.silk-canvas[data-ready] + svg { display: none; }
+/* Keep the same high-resolution design if WebGL is unavailable. */
+.silk-still { background: #b5a3ca url('./assets/grainy-silk-still.webp') center / cover; }
+.silk-canvas[data-ready] + .silk-still { display: none; }
 .theme-dark .silk-waves { filter: brightness(.64) saturate(1.14); }
-
-.silk-fold,
-.silk-sweep {
-  transform-origin: center;
-  transform-box: view-box;
-}
-
-.silk-fold { animation: silk-travel 17s ease-in-out infinite alternate; }
-.silk-sweep { animation: silk-travel 22s ease-in-out -6s infinite alternate-reverse; }
-
-@keyframes silk-travel {
-  from { transform: translate(30px, -28px) rotate(3deg); }
-  to { transform: translate(-37px, 36px) rotate(-4deg); }
-}
 
 .glass-home-content {
   padding: max(16px, env(safe-area-inset-top)) var(--glass-gutter) 25px;
@@ -318,6 +306,5 @@
 .glass-nav button[aria-current] { color: var(--glass-purple); font-weight: 750; }
 
 @media (prefers-reduced-motion: reduce) {
-  .silk-fold, .silk-sweep { animation: none; }
   .grocery-shell * { transition-duration: 0s; }
 }
