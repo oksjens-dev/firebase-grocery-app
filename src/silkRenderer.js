@@ -22,7 +22,7 @@ const fragmentSource = `
     vec2 point = (screen - 0.5) * vec2(resolution.x / resolution.y, 1.0);
     // Travel towards the lower left along the normal of the folds.
     vec2 p = vec2(dot(point, vec2(-0.69, 0.724)), dot(point, vec2(0.724, 0.69)));
-    float clock = time * 0.155;
+    float clock = time * 0.95;
     p *= 5.4;
 
     // Slow domain warps pull broad bands into curls with narrower seams.

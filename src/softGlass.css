@@ -82,11 +82,11 @@
 .silk-still { background: #b5a3ca url('./assets/grainy-silk-still.webp') center / cover; }
 [data-motion="on"] .silk-still,
 [data-motion="system"] .silk-still {
-  animation: silk-fallback-travel 16s -3s ease-in-out infinite alternate;
+  animation: silk-fallback-travel 4.4s -1.1s ease-in-out infinite alternate;
 }
 @keyframes silk-fallback-travel {
-  from { transform: translate3d(5%, -4%, 0) scale(1.17) rotate(1.5deg); }
-  to { transform: translate3d(-5%, 4%, 0) scale(1.17) rotate(-1.5deg); }
+  from { transform: translate3d(8%, -6%, 0) scale(1.25) rotate(2deg); }
+  to { transform: translate3d(-8%, 6%, 0) scale(1.25) rotate(-2deg); }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-motion="system"] .silk-still { animation: none; }
