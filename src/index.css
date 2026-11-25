@@ -39,15 +39,15 @@ html, body, #root {
 }
 
 .category-accent {
-  color: #1954d1;
-  background-color: #e8f0ff;
-  border-color: #cbdcff;
+  color: #4b5563;
+  background-color: #f1f2f4;
+  border-color: #dce0e5;
 }
 
 .grocery-app.theme-dark .category-accent {
-  color: #a8c5ff;
-  background-color: #1d315c;
-  border-color: #395689;
+  color: #d1d5db;
+  background-color: #2d2e33;
+  border-color: #45464e;
 }
 
 /* System-scheduled dark appearance. The React shell applies theme-dark when
