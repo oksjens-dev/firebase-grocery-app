@@ -428,6 +428,11 @@ export default function App() {
   };
   const isDarkMode = appearance === 'dark' || (appearance === 'system' && systemDark);
 
+  useEffect(() => {
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    themeColor?.setAttribute('content', isDarkMode ? '#251b2f' : '#f2eaf8');
+  }, [isDarkMode]);
+
   // Form State
   const [newItemName, setNewItemName] = useState('');
   const [newItemCategory, setNewItemCategory] = useState('other');

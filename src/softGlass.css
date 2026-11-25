@@ -18,10 +18,13 @@
   --glass-butter-ink: #362b1b;
   --glass-divider: rgb(82 47 110 / 13%);
   --glass-gutter: clamp(16px, 4.8vw, 24px);
+  --glass-safe-top: env(safe-area-inset-top, 0px);
+  --glass-gutter-start: max(var(--glass-gutter), env(safe-area-inset-left, 0px));
+  --glass-gutter-end: max(var(--glass-gutter), env(safe-area-inset-right, 0px));
   --glass-focus: #6b32c3;
   --glass-inset-tint: rgb(244 235 253 / 66%);
   --glass-inset-edge: rgb(255 255 255 / 78%);
-  --glass-dock-bottom: max(10px, env(safe-area-inset-bottom));
+  --glass-dock-bottom: max(10px, env(safe-area-inset-bottom, 0px));
   --glass-dock-space: calc(66px + var(--glass-dock-bottom));
   color: var(--glass-ink);
   isolation: isolate;
@@ -43,6 +46,36 @@
   --glass-inset-tint: rgb(88 61 114 / 32%);
   --glass-inset-edge: rgb(232 208 255 / 17%);
   background: radial-gradient(ellipse at 88% 0%, #38244f 0, transparent 52%), #1b1422;
+}
+
+@supports (-webkit-touch-callout: none) {
+  @media (display-mode: standalone) {
+    .grocery-app .grocery-shell {
+      max-width: none;
+      height: 100%;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    /* Keep the system glyphs readable over the live gradient and waves. */
+    .grocery-shell::after {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto;
+      z-index: 20;
+      height: calc(var(--glass-safe-top) * 1.18);
+      background: linear-gradient(
+        to bottom,
+        rgb(75 42 112 / 70%),
+        rgb(75 42 112 / 66%) 38%,
+        rgb(75 42 112 / 45%) 66%,
+        rgb(75 42 112 / 14%) 88%,
+        transparent
+      );
+      pointer-events: none;
+    }
+  }
 }
 
 .grocery-shell :is(button, summary, input):focus-visible {
@@ -96,7 +129,8 @@
 .theme-dark .silk-waves { filter: brightness(.64) saturate(1.14); }
 
 .glass-home-content {
-  padding: max(16px, env(safe-area-inset-top)) var(--glass-gutter) calc(var(--glass-dock-space) + 15px);
+  padding-block: calc(var(--glass-safe-top) + 16px) calc(var(--glass-dock-space) + 15px);
+  padding-inline: var(--glass-gutter-start) var(--glass-gutter-end);
 }
 
 .glass-home-heading {
@@ -262,7 +296,8 @@
 
 /* Fixed headers share the same rhythm and gutter as the content below. */
 .glass-tab-header {
-  padding: max(14px, env(safe-area-inset-top)) var(--glass-gutter) 13px;
+  padding-block: calc(var(--glass-safe-top) + 14px) 13px;
+  padding-inline: var(--glass-gutter-start) var(--glass-gutter-end);
   flex-shrink: 0;
 }
 .glass-tab-header p { color: var(--glass-muted); font-size: 16px; margin-top: 4px; }
@@ -290,12 +325,19 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
-  padding: 3px var(--glass-gutter) 12px;
+  padding-block: 3px 12px;
+  padding-inline: var(--glass-gutter-start) var(--glass-gutter-end);
 }
-.glass-list { padding: 3px var(--glass-gutter) 12px; }
+.glass-list {
+  padding-block: 3px 12px;
+  padding-inline: var(--glass-gutter-start) var(--glass-gutter-end);
+}
 .glass-list-groups { display: grid; gap: 12px; }
-.glass-settings { padding: max(16px, env(safe-area-inset-top)) var(--glass-gutter) 12px; }
-.glass-status { border-radius: 20px; margin-inline: var(--glass-gutter); }
+.glass-settings {
+  padding-block: calc(var(--glass-safe-top) + 16px) 12px;
+  padding-inline: var(--glass-gutter-start) var(--glass-gutter-end);
+}
+.glass-status { border-radius: 20px; margin-inline: var(--glass-gutter-start) var(--glass-gutter-end); }
 
 .glass-card { border-radius: 24px; }
 .glass-empty { padding: 32px 16px; text-align: center; color: var(--glass-muted); }
@@ -440,13 +482,13 @@
 .glass-list-action {
   z-index: 21;
   position: absolute;
-  inset-inline: var(--glass-gutter);
+  inset-inline: var(--glass-gutter-start) var(--glass-gutter-end);
   bottom: calc(var(--glass-dock-space) + 2px);
 }
 
 .glass-nav {
   position: absolute;
-  inset-inline: var(--glass-gutter);
+  inset-inline: var(--glass-gutter-start) var(--glass-gutter-end);
   bottom: var(--glass-dock-bottom);
   z-index: 30;
   display: grid;
