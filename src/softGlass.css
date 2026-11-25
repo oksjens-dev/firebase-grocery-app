@@ -1,7 +1,7 @@
 @font-face {
-  font-family: Caveat;
-  src: url('/fonts/caveat-latin.woff2') format('woff2');
-  font-weight: 600 700;
+  font-family: Outfit;
+  src: url('/fonts/outfit-latin.woff2') format('woff2');
+  font-weight: 600 800;
   font-style: normal;
   font-display: swap;
 }
@@ -125,8 +125,8 @@
   max-width: 100%;
   color: #fffaf9;
   text-align: center;
-  font-family: Caveat, 'Bradley Hand', 'Segoe Print', cursive;
-  font-weight: 600;
+  font-family: Outfit, ui-rounded, system-ui, sans-serif;
+  font-weight: 650;
   line-height: 1.02;
   text-shadow: 0 2px 13px rgb(45 18 77 / 48%), 0 1px 3px rgb(45 18 77 / 50%);
 }
@@ -138,8 +138,8 @@
   padding: 0.08em 0.17em;
   white-space: nowrap;
 }
-.glass-greeting-salutation { font-size: clamp(31px, 9.5vw, 43px); }
-.glass-greeting-names { font-size: clamp(44px, 13.4vw, 61px); font-weight: 700; }
+.glass-greeting-salutation { font-size: clamp(26px, 8.7vw, 38px); }
+.glass-greeting-names { font-size: clamp(38px, 14.1vw, 60px); font-weight: 800; }
 
 @media (prefers-reduced-motion: no-preference) {
   .glass-greeting[data-writing] .glass-greeting-line {
