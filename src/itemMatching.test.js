@@ -72,6 +72,15 @@ test('groups German and English names for the same grocery product', () => {
   assert.ok(groupedIds.some((ids) => ids.has('koriander') && ids.has('coriander')));
 });
 
+test('keeps explicitly separate items out of automatic duplicate merges', () => {
+  const existing = { id: 'existing', name: 'Zitrone' };
+  const duplicate = { id: 'duplicate', name: 'Lemons' };
+  const separate = { id: 'separate', name: 'Lemon', keepSeparate: true };
+
+  assert.deepEqual(findDuplicateGroups([existing, duplicate, separate]), [[existing, duplicate]]);
+  assert.deepEqual(findDuplicateGroups([separate, existing]), []);
+});
+
 test('prefers the existing English name when bilingual duplicates are merged', () => {
   const merged = chooseMergedItem([
     { id: 'german', name: 'Bananen', category: 'fruit', isBought: false, quantity: 1 },
