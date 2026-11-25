@@ -134,6 +134,13 @@ const formatQuantity = (item) => {
   return unit === 'x' ? `${value}×` : `${value}${unit}`;
 };
 
+const getHomeGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+};
+
 // --- Helper Components ---
 
 const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
@@ -372,6 +379,8 @@ export default function App() {
   const [authError, setAuthError] = useState(null);
   const [isLoadingLong, setIsLoadingLong] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
+  const [homeGreeting, setHomeGreeting] = useState(getHomeGreeting);
+  const [hasWrittenGreeting, setHasWrittenGreeting] = useState(false);
   
   // Data State
   const [items, setItems] = useState([]);
@@ -401,6 +410,16 @@ export default function App() {
     const handleChange = (event) => setSystemDark(event.matches);
     media.addEventListener('change', handleChange);
     return () => media.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => setHomeGreeting(getHomeGreeting());
+    const interval = window.setInterval(refresh, 60000);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, []);
 
   const updateAppearance = (value) => {
@@ -1127,7 +1146,12 @@ export default function App() {
           <button type="button" aria-label="Settings" onClick={() => setActiveTab('settings')} className="glass-circle glass-surface">
             <Settings size={20} aria-hidden="true" />
           </button>
-          <h1>Marie &amp; Jens</h1>
+          <h1 className="glass-greeting" aria-label={`${homeGreeting}, Marie & Jens`} data-writing={hasWrittenGreeting ? undefined : ''}>
+            <span className="glass-greeting-line glass-greeting-salutation">{homeGreeting}</span>
+            <span className="glass-greeting-line glass-greeting-names" onAnimationEnd={() => setHasWrittenGreeting(true)}>
+              Marie &amp; Jens
+            </span>
+          </h1>
         </div>
         <section className="glass-surface glass-shopping-card" aria-label="Shopping">
           <button type="button" className="glass-shopping-link" onClick={() => setActiveTab('shopping')}>
