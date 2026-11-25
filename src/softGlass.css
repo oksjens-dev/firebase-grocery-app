@@ -78,8 +78,19 @@
 
 .silk-canvas { visibility: hidden; }
 .silk-canvas[data-ready] { visibility: visible; }
-/* Keep the same high-resolution design if WebGL is unavailable. */
+/* Drift the high-resolution artwork on the compositor when WebGL is unavailable. */
 .silk-still { background: #b5a3ca url('./assets/grainy-silk-still.webp') center / cover; }
+[data-motion="on"] .silk-still,
+[data-motion="system"] .silk-still {
+  animation: silk-fallback-travel 16s -3s ease-in-out infinite alternate;
+}
+@keyframes silk-fallback-travel {
+  from { transform: translate3d(5%, -4%, 0) scale(1.17) rotate(1.5deg); }
+  to { transform: translate3d(-5%, 4%, 0) scale(1.17) rotate(-1.5deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-motion="system"] .silk-still { animation: none; }
+}
 .silk-canvas[data-ready] + .silk-still { display: none; }
 .theme-dark .silk-waves { filter: brightness(.64) saturate(1.14); }
 

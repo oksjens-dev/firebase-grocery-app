@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { createSilkRenderer } from './silkRenderer';
 
-export default function SilkWaves() {
+export default function SilkWaves({ preference }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -12,7 +12,6 @@ export default function SilkWaves() {
     let frame;
     let lastFrame;
     let seconds = 0;
-    let inView = true;
 
     function resize() {
       if (!renderer) return;
@@ -26,7 +25,7 @@ export default function SilkWaves() {
 
     function animate(now) {
       if (lastFrame === undefined || now - lastFrame >= targetFrameInterval - 1) {
-        if (lastFrame !== undefined) seconds += Math.min(now - lastFrame, 42) / 1000;
+        if (lastFrame !== undefined) seconds += Math.min(now - lastFrame, 100) / 1000;
         lastFrame = now;
         renderer.draw(seconds);
       }
@@ -36,7 +35,8 @@ export default function SilkWaves() {
     function syncPlayback() {
       cancelAnimationFrame(frame);
       lastFrame = undefined;
-      if (renderer && inView && !document.hidden && !motion.matches) {
+      const enabled = preference === 'on' || (preference === 'system' && !motion.matches);
+      if (renderer && enabled && !document.hidden) {
         frame = requestAnimationFrame(animate);
       }
     }
@@ -57,11 +57,6 @@ export default function SilkWaves() {
     restore();
     const sizeObserver = new ResizeObserver(resize);
     sizeObserver.observe(canvas);
-    const visibilityObserver = new IntersectionObserver(([entry]) => {
-      inView = entry.isIntersecting;
-      syncPlayback();
-    });
-    visibilityObserver.observe(canvas);
     canvas.addEventListener('webglcontextlost', loseContext);
     canvas.addEventListener('webglcontextrestored', restore);
     motion.addEventListener('change', syncPlayback);
@@ -70,7 +65,6 @@ export default function SilkWaves() {
     return () => {
       cancelAnimationFrame(frame);
       sizeObserver.disconnect();
-      visibilityObserver.disconnect();
       motion.removeEventListener('change', syncPlayback);
       document.removeEventListener('visibilitychange', syncPlayback);
       canvas.removeEventListener('webglcontextlost', loseContext);
@@ -78,10 +72,10 @@ export default function SilkWaves() {
       renderer?.dispose();
       delete canvas.dataset.ready;
     };
-  }, []);
+  }, [preference]);
 
   return (
-    <div className="silk-waves" aria-hidden="true">
+    <div className="silk-waves" data-motion={preference} aria-hidden="true">
       <canvas ref={canvasRef} className="silk-canvas" />
       <div className="silk-still" />
     </div>

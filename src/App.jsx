@@ -366,6 +366,7 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
 export default function App() {
   const [appearance, setAppearance] = useState(() => localStorage.getItem('grocery-appearance') || 'system');
+  const [backgroundMotion, setBackgroundMotion] = useState(() => localStorage.getItem('grocery-background-motion') || 'on');
   const [systemDark, setSystemDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [user, setUser] = useState(null);
   const [authError, setAuthError] = useState(null);
@@ -1156,7 +1157,7 @@ export default function App() {
 
   const renderHomeView = () => (
     <div className="glass-home">
-      <SilkWaves />
+      <SilkWaves preference={backgroundMotion} />
       <div className="glass-home-content">
         <div className="glass-home-heading">
           <button type="button" aria-label="Settings" onClick={() => setActiveTab('settings')} className="glass-circle glass-surface">
@@ -1200,6 +1201,28 @@ export default function App() {
       <button onClick={() => setActiveTab('home')} className="text-sm font-bold text-[#7548D8]">← Home</button>
       <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Marie &amp; Jens</p><h1 className="text-3xl font-bold mt-1">Settings</h1></div>
       <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">General</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="p-4 border-b border-purple-50"><div className="flex gap-3 items-center mb-3"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Settings size={18} /></span><span><strong className="block">Appearance</strong><small className="text-gray-500">System follows your iPhone schedule</small></span></div><div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">{['system','light','dark'].map(mode => <button key={mode} onClick={() => updateAppearance(mode)} className={`py-2 rounded-lg text-xs font-bold capitalize ${appearance === mode ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{mode}</button>)}</div></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Package size={18} /></span><span><strong className="block">Categories</strong><small className="text-gray-500">{DEFAULT_CATEGORIES.length} categories · English primary</small></span></div></div></section>
+      <section className="bg-white rounded-2xl border border-purple-100 p-4">
+        <fieldset>
+          <legend className="font-bold">Background motion</legend>
+          <p className="text-sm text-gray-500 mb-3">Animate the waves on Home. System follows Reduce Motion.</p>
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">
+            {['on', 'system', 'off'].map(mode => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={backgroundMotion === mode}
+                onClick={() => {
+                  setBackgroundMotion(mode);
+                  localStorage.setItem('grocery-background-motion', mode);
+                }}
+                className={`min-h-11 rounded-lg text-xs font-bold capitalize ${backgroundMotion === mode ? 'bg-white text-[#7548D8] shadow-sm [.theme-dark_&]:text-purple-300' : 'text-gray-500'}`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      </section>
       <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Data</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="flex gap-3 items-center p-4 border-b border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Database size={18} /></span><span><strong className="block">Firebase sync</strong><small className="text-gray-500">Connected · {purchaseEvents.length} recorded check-offs</small></span></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><ShoppingBag size={18} /></span><span><strong className="block">Library</strong><small className="text-gray-500">{items.length} items · {recipes.length} recipes</small></span></div></div></section>
       <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Danger Zone</p><div className="rounded-2xl bg-white border border-red-100 overflow-hidden">{availableYears.map(year => <button key={year} onClick={() => setDeleteYear(year)} className="w-full flex gap-3 items-center p-4 text-left border-b last:border-0 border-red-50"><span className="p-2 rounded-xl bg-red-50 text-red-600"><Trash2 size={18} /></span><span className="flex-1"><strong className="block text-red-700">Delete {year} shopping data</strong><small className="text-gray-500">Removes checked-off items and analytics for this year</small></span><ChevronRight size={18} className="text-red-300" /></button>)}</div></section>
     </div>
