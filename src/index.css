@@ -65,7 +65,6 @@ html, body, #root {
   color: #f4eff7 !important;
 }
 
-.grocery-app.theme-dark > div,
 .grocery-app.theme-dark [class~="bg-[#fffaf6]"],
 .grocery-app.theme-dark [class~="bg-[#fffcf8]"] {
   background-color: #151218 !important;

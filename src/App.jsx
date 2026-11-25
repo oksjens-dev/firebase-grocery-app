@@ -1,6 +1,6 @@
 import SilkWaves from './SilkWaves';
 import './softGlass.css';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useId } from 'react';
 import {
   ChefHat,
   ShoppingCart,
@@ -11,7 +11,6 @@ import {
   Trash2,
   Check,
   X,
-  ArrowRight,
   Utensils,
   Award,
   CalendarPlus,
@@ -140,6 +139,7 @@ const formatQuantity = (item) => {
 const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
   const [sheetHeight, setSheetHeight] = useState(78);
   const dragState = useRef(null);
+  const titleId = useId();
   if (!isOpen) return null;
   const startDrag = (event) => {
     dragState.current = { y: event.clientY, height: sheetHeight };
@@ -158,15 +158,15 @@ const Modal = ({ isOpen, onClose, title, children, bottomSheet = false }) => {
   };
   return (
     <div className={`fixed inset-0 z-[100] flex ${bottomSheet ? 'items-end' : 'items-center justify-center p-4'} bg-black/30 backdrop-blur-sm animate-fade-in`}>
-      <div style={bottomSheet ? { height: `${sheetHeight}dvh`, maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 8px)' } : undefined} className={`bg-[#fffcf8] w-full max-w-md min-h-0 flex flex-col animate-slide-up shadow-2xl ${bottomSheet ? 'rounded-t-[2rem]' : 'rounded-2xl max-h-[85vh]'}`}>
+      <div style={bottomSheet ? { height: `${sheetHeight}dvh`, maxHeight: 'calc(100dvh - env(safe-area-inset-top) - 8px)' } : undefined} role="dialog" aria-modal="true" aria-labelledby={titleId} className={`glass-surface glass-dialog w-full max-w-md min-h-0 flex flex-col animate-slide-up ${bottomSheet ? 'rounded-t-[2rem]' : 'rounded-2xl max-h-[85vh]'}`}>
         {bottomSheet && <button type="button" aria-label="Resize Add Item sheet" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} className="h-7 shrink-0 touch-none cursor-ns-resize"><span className="block w-10 h-1.5 bg-gray-300 rounded-full mx-auto" /></button>}
-        <div className="flex justify-between items-center p-4 border-b shrink-0 bg-white rounded-t-2xl">
-          <h2 className="text-xl font-bold text-gray-800 truncate pr-4">{title}</h2>
-          <button onClick={onClose} disabled={!onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors shrink-0">
+        <div className="glass-dialog-title flex justify-between items-center gap-3 px-4 py-2 shrink-0">
+          <h2 id={titleId} className="text-xl font-bold break-words min-w-0">{title}</h2>
+          <button type="button" aria-label="Close" onClick={onClose} disabled={!onClose} className="glass-circle">
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 min-h-0 overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar">
+        <div className="glass-dialog-body p-4 min-h-0 overflow-y-auto overscroll-contain touch-pan-y custom-scrollbar">
           {children}
         </div>
       </div>
@@ -331,7 +331,7 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
         </button>
       </div>
 
-      <div className="bg-gray-50 p-4 rounded-xl">
+      <div className="glass-inset p-4">
          <h4 className="font-bold text-gray-500 text-xs uppercase tracking-wide mb-3">Ingredients</h4>
          <ul className="space-y-2">
            {recipe.ingredients.map((ing, i) => (
@@ -346,7 +346,7 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
       {recipe.instructions && (
         <div>
            <h4 className="font-bold text-gray-500 text-xs uppercase tracking-wide mb-2">Instructions</h4>
-           <div className="text-gray-700 text-sm whitespace-pre-wrap leading-relaxed bg-white border border-gray-100 p-4 rounded-xl">
+           <div className="glass-inset text-sm whitespace-pre-wrap leading-relaxed p-4">
              {recipe.instructions}
            </div>
         </div>
@@ -354,7 +354,7 @@ const RecipeDetailContent = ({ recipe, onClose, onUpdate, onAddIngredients }) =>
 
       <button 
         onClick={() => { onAddIngredients(recipe); onClose(); }} 
-        className="w-full bg-indigo-600 text-white p-4 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 active:scale-95 flex items-center justify-center gap-2"
+        className="glass-primary px-4 py-3"
       >
         <Plus size={20} /> Add Ingredients to List
       </button>
@@ -391,6 +391,7 @@ export default function App() {
   const [mealSearchTerm, setMealSearchTerm] = useState('');
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [shoppingSearchTerm, setShoppingSearchTerm] = useState('');
+  const [searchTab, setSearchTab] = useState(null);
   const [recentFilter, setRecentFilter] = useState('all');
   const isMergingDuplicates = useRef(false);
   const isMigratingCategories = useRef(false);
@@ -1058,99 +1059,62 @@ export default function App() {
 
   // --- Render Header Logic ---
   const renderHeader = () => {
-    switch (activeTab) {
-      case 'shopping':
-        return (
-          <div className="glass-list-heading">
-            <div className="glass-list-tools">
-              <button type="button" className="glass-circle" aria-label="Back to Home" onClick={() => setActiveTab('home')}>
-                <ChevronRight className="rotate-180" size={22} aria-hidden="true" />
-              </button>
-              <details className="glass-list-search" onToggle={event => {
-                const field = event.currentTarget.querySelector('input');
-                if (event.currentTarget.open) field?.focus();
-                else setShoppingSearchTerm('');
-              }}>
-                <summary className="glass-circle" aria-label="Search shopping list"><Search size={19} aria-hidden="true" /></summary>
-                <input type="search" aria-label="Search items" placeholder="Search items…" value={shoppingSearchTerm} onChange={event => setShoppingSearchTerm(event.target.value)} />
-              </details>
-            </div>
-            <h1>Shopping List</h1>
-            <p>{shoppingList.length} {shoppingList.length === 1 ? 'item' : 'items'} left</p>
-          </div>
-        );
-      case 'recipes':
-        return (
-          <div className="py-2 space-y-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Our Recipes</h1>
-                <p className="text-sm text-gray-500 mt-1">Tap + to add a new recipe.</p>
-              </div>
+    const header = {
+      shopping: {
+        title: 'Shopping List',
+        detail: `${shoppingList.length} ${shoppingList.length === 1 ? 'item' : 'items'} left`,
+        search: { label: 'Search items', buttonLabel: 'Search shopping list', value: shoppingSearchTerm, update: setShoppingSearchTerm },
+      },
+      recipes: {
+        title: 'Our Recipes',
+        detail: `${recipes.length} ${recipes.length === 1 ? 'recipe' : 'recipes'} saved`,
+        search: { label: 'Search recipes', value: recipeSearchTerm, update: setRecipeSearchTerm },
+      },
+      history: {
+        title: 'Recently Bought',
+        detail: `${historyList.length} ${historyList.length === 1 ? 'item' : 'items'} bought`,
+        search: { label: 'Search history', value: historySearchTerm, update: setHistorySearchTerm },
+      },
+      analytics: { title: 'Plan' },
+    }[activeTab];
+    if (!header) return null;
+    const searchOpen = Boolean(header.search && (searchTab === activeTab || header.search.value));
+
+    return (
+      <header className="glass-tab-header">
+        <div className="glass-tab-tools">
+          <button type="button" className="glass-circle glass-surface" aria-label="Back to Home" onClick={() => setActiveTab('home')}>
+            <ChevronRight className="rotate-180" size={22} aria-hidden="true" />
+          </button>
+          {header.search && (
+            <div className="glass-tab-search" data-open={searchOpen}>
               <button
-                onClick={() => setIsAddRecipeOpen(true)}
-                className="bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 active:scale-95 transition-all"
+                type="button"
+                className="glass-circle glass-surface"
+                aria-expanded={searchOpen}
+                aria-label={searchOpen ? 'Close search' : header.search.buttonLabel || header.search.label}
+                onClick={() => {
+                  setSearchTab(searchOpen ? null : activeTab);
+                  if (searchOpen) header.search.update('');
+                }}
               >
-                <Plus size={24} />
+                {searchOpen ? <X size={19} aria-hidden="true" /> : <Search size={19} aria-hidden="true" />}
               </button>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search recipes..." 
-                value={recipeSearchTerm}
-                onChange={(e) => setRecipeSearchTerm(e.target.value)}
-                className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
-              />
-              {recipeSearchTerm && (
-                <button 
-                  onClick={() => setRecipeSearchTerm('')} 
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={18} />
-                </button>
+              {searchOpen && (
+                <input key={activeTab} autoFocus type="search" className="glass-inset" aria-label={header.search.label} placeholder={`${header.search.label}…`} value={header.search.value} onChange={event => header.search.update(event.target.value)} />
               )}
             </div>
-          </div>
-        );
-      case 'history':
-        return (
-          <div className="py-2 space-y-3">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-800">Recently Bought</h1>
-              <p className="text-sm text-gray-500 mt-1">Tap + to add back to shopping list.</p>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={18} />
-              <input 
-                type="text" 
-                placeholder="Search history..." 
-                value={historySearchTerm}
-                onChange={(e) => setHistorySearchTerm(e.target.value)}
-                className="w-full bg-gray-50 pl-10 pr-10 py-2.5 rounded-xl font-medium outline-none focus:ring-2 ring-indigo-100 border border-transparent focus:border-indigo-200 transition-all text-base"
-              />
-              {historySearchTerm && (
-                <button 
-                  onClick={() => setHistorySearchTerm('')} 
-                  className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      case 'analytics':
-        return (
-          <div className="py-2">
-            <h1 className="text-2xl font-bold text-gray-800">Analytics & Plan</h1>
-            <p className="text-sm text-gray-500 mt-1">Tap + for daily meal planning and enjoy the analytics!</p>
-          </div>
-        );
-      default:
-        return null;
-    }
+          )}
+          {activeTab === 'recipes' && (
+            <button type="button" className="glass-circle glass-surface glass-accent" aria-label="Add recipe" onClick={() => setIsAddRecipeOpen(true)}>
+              <Plus size={22} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+        <h1>{header.title}</h1>
+        {header.detail && <p>{header.detail}</p>}
+      </header>
+    );
   };
 
   // --- Render Content Views ---
@@ -1197,11 +1161,11 @@ export default function App() {
   );
 
   const renderSettingsView = () => (
-    <div className="space-y-6 pb-12">
+    <div className="glass-settings space-y-4">
       <button onClick={() => setActiveTab('home')} className="text-sm font-bold text-[#7548D8]">← Home</button>
       <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Marie &amp; Jens</p><h1 className="text-3xl font-bold mt-1">Settings</h1></div>
-      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">General</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="p-4 border-b border-purple-50"><div className="flex gap-3 items-center mb-3"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Settings size={18} /></span><span><strong className="block">Appearance</strong><small className="text-gray-500">System follows your iPhone schedule</small></span></div><div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">{['system','light','dark'].map(mode => <button key={mode} onClick={() => updateAppearance(mode)} className={`py-2 rounded-lg text-xs font-bold capitalize ${appearance === mode ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{mode}</button>)}</div></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Package size={18} /></span><span><strong className="block">Categories</strong><small className="text-gray-500">{DEFAULT_CATEGORIES.length} categories · English primary</small></span></div></div></section>
-      <section className="bg-white rounded-2xl border border-purple-100 p-4">
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">General</p><div className="glass-surface glass-card overflow-hidden"><div className="p-4 border-b border-purple-50"><div className="flex gap-3 items-center mb-3"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Settings size={18} /></span><span><strong className="block">Appearance</strong><small className="text-gray-500">System follows your iPhone schedule</small></span></div><div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">{['system','light','dark'].map(mode => <button key={mode} onClick={() => updateAppearance(mode)} className={`py-2 rounded-lg text-xs font-bold capitalize ${appearance === mode ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{mode}</button>)}</div></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Package size={18} /></span><span><strong className="block">Categories</strong><small className="text-gray-500">{DEFAULT_CATEGORIES.length} categories · English primary</small></span></div></div></section>
+      <section className="glass-surface glass-card p-4">
         <fieldset>
           <legend className="font-bold">Background motion</legend>
           <p className="text-sm text-gray-500 mb-3">Animate the waves on Home. System follows Reduce Motion.</p>
@@ -1223,15 +1187,15 @@ export default function App() {
           </div>
         </fieldset>
       </section>
-      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Data</p><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden"><div className="flex gap-3 items-center p-4 border-b border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Database size={18} /></span><span><strong className="block">Firebase sync</strong><small className="text-gray-500">Connected · {purchaseEvents.length} recorded check-offs</small></span></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><ShoppingBag size={18} /></span><span><strong className="block">Library</strong><small className="text-gray-500">{items.length} items · {recipes.length} recipes</small></span></div></div></section>
-      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Danger Zone</p><div className="rounded-2xl bg-white border border-red-100 overflow-hidden">{availableYears.map(year => <button key={year} onClick={() => setDeleteYear(year)} className="w-full flex gap-3 items-center p-4 text-left border-b last:border-0 border-red-50"><span className="p-2 rounded-xl bg-red-50 text-red-600"><Trash2 size={18} /></span><span className="flex-1"><strong className="block text-red-700">Delete {year} shopping data</strong><small className="text-gray-500">Removes checked-off items and analytics for this year</small></span><ChevronRight size={18} className="text-red-300" /></button>)}</div></section>
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Data</p><div className="glass-surface glass-card overflow-hidden"><div className="flex gap-3 items-center p-4 border-b border-purple-50"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><Database size={18} /></span><span><strong className="block">Firebase sync</strong><small className="text-gray-500">Connected · {purchaseEvents.length} recorded check-offs</small></span></div><div className="flex gap-3 items-center p-4"><span className="p-2 rounded-xl bg-purple-50 text-[#7548D8]"><ShoppingBag size={18} /></span><span><strong className="block">Library</strong><small className="text-gray-500">{items.length} items · {recipes.length} recipes</small></span></div></div></section>
+      <section><p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2">Danger Zone</p><div className="glass-surface glass-card overflow-hidden">{availableYears.map(year => <button key={year} onClick={() => setDeleteYear(year)} className="w-full flex gap-3 items-center p-4 text-left border-b last:border-0 border-red-50"><span className="p-2 rounded-xl bg-red-50 text-red-600"><Trash2 size={18} /></span><span className="flex-1"><strong className="block text-red-700">Delete {year} shopping data</strong><small className="text-gray-500">Removes checked-off items and analytics for this year</small></span><ChevronRight size={18} className="text-red-300" /></button>)}</div></section>
     </div>
   );
 
   const renderShoppingListView = () => (
     <div className="glass-list">
       {filteredShoppingList.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="glass-card glass-surface glass-empty">
           {shoppingList.length === 0 ? (
             <>
               <ShoppingCart size={48} className="mx-auto mb-2 opacity-50" />
@@ -1249,10 +1213,10 @@ export default function App() {
             if (!categoryItems.length) return null;
             const CategoryIcon = category.icon;
             return (
-              <section key={category.id} className="glass-list-card">
+              <section key={category.id} className="glass-list-card glass-card glass-surface">
                 <h2><CategoryIcon size={18} aria-hidden="true" /> {category.name}</h2>
                 {categoryItems.map(item => (
-                  <div key={item.id} className="glass-list-row">
+                  <div key={item.id} className="glass-list-row glass-inset">
                     <button type="button" aria-label={`Check off ${item.name}`} onClick={() => checkOffItem(item)} className="glass-check">
                       <span aria-hidden="true" />
                       <span>{item.name}</span>
@@ -1268,11 +1232,11 @@ export default function App() {
         </div>
       )}
       {tripItems.length > 0 && (
-        <details className="glass-trip">
+        <details className="glass-trip glass-card glass-surface">
           <summary><ChevronRight size={19} aria-hidden="true" /> Checked this trip ({tripItems.length})</summary>
-          <ul className="mt-2 divide-y divide-purple-50">
+          <ul className="mt-2 space-y-1.5">
             {tripItems.map(item => (
-              <li key={item.id} className="flex min-h-11 items-center gap-3">
+              <li key={item.id} className="glass-inset flex min-h-11 items-center gap-3 px-2">
                 <Check size={18} aria-hidden="true" />
                 <span className="flex-1">{item.name} · {formatQuantity(item)}</span>
                 {item.purchaseEventId && <button type="button" aria-label={`Undo check-off for ${item.name}`} onClick={() => undoCheckoff(item)} className="min-h-11 px-2 font-bold text-[#7548D8] [.theme-dark_&]:text-purple-300">Undo</button>}
@@ -1286,84 +1250,61 @@ export default function App() {
   );
 
   const renderHistoryView = () => (
-    <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-purple-50">
-        {[['all','All'],['week','This Week'],['month','This Month']].map(([id,label]) => <button key={id} onClick={() => setRecentFilter(id)} className={`py-2 rounded-lg text-xs font-bold transition-all ${recentFilter === id ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{label}</button>)}
+    <div className="glass-tab-content">
+      <div className="glass-surface glass-segment" aria-label="Purchase period" role="group">
+        {[['all', 'All'], ['week', 'This Week'], ['month', 'This Month']].map(([id, label]) => (
+          <button key={id} type="button" aria-pressed={recentFilter === id} onClick={() => setRecentFilter(id)}>{label}</button>
+        ))}
       </div>
       {filteredHistory.length === 0 ? (
-         <div className="text-center py-12 text-gray-400">
-            {historyList.length === 0 ? (
-                <>
-                    <History size={48} className="mx-auto mb-2 opacity-50" />
-                    <p>No history yet.</p>
-                </>
-            ) : (
-                <p>No items found.</p>
-            )}
-         </div>
-      ) : (
-        <div className="space-y-2">
-            {filteredHistory.map(item => (
-                <div
-                    key={item.id}
-                    className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between gap-2"
-                >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="min-w-0 break-words line-through text-gray-500 font-medium">
-                      {item.name} · {formatQuantity(item)}
-                    </div>
-                    <CategoryBadge categoryId={item.category} />
-                    </div>
-                    <button
-                    onClick={() => addHistoryItemBack(item)}
-                    className="shrink-0 text-indigo-600 bg-indigo-50 p-2 rounded-full hover:bg-indigo-100 transition-colors active:scale-95"
-                    >
-                    <Plus size={18} />
-                    </button>
-                </div>
-            ))}
+        <div className="glass-card glass-surface glass-empty">
+          {historyList.length === 0 && <History size={30} className="mx-auto mb-2" aria-hidden="true" />}
+          <p>{historyList.length === 0 ? 'No history yet.' : 'No items found.'}</p>
         </div>
+      ) : (
+        <ul className="space-y-2.5">
+          {filteredHistory.map(item => (
+            <li key={item.id} className="glass-surface glass-row">
+              <span className="glass-row-icon"><History size={19} aria-hidden="true" /></span>
+              <div className="glass-row-main">
+                <strong>{item.name}</strong>
+                <span className="glass-row-meta">{formatQuantity(item)} <CategoryBadge categoryId={item.category} /></span>
+              </div>
+              <button type="button" aria-label={`Add ${item.name} back`} onClick={() => addHistoryItemBack(item)} className="glass-circle glass-inset glass-accent">
+                <Plus size={19} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
 
   const renderRecipesView = () => (
-    <div className="space-y-4 pb-24 animate-in fade-in zoom-in-95 duration-300">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {filteredRecipes.map(recipe => (
-          <div
-            key={recipe.id}
-            onClick={() => setSelectedRecipe(recipe)}
-            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all cursor-pointer relative overflow-hidden group active:scale-[0.98]"
-          >
-            <div className="absolute top-0 right-0 p-2 group-hover:opacity-100 transition-opacity z-10">
-               <ArrowRight size={16} className="text-gray-400" />
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                deleteRecipe(recipe.id);
-              }}
-              className="absolute top-2 right-2 p-1.5 bg-gray-100 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 z-20 transition-colors opacity-0 group-hover:opacity-100"
-            >
-              <Trash2 size={14} />
-            </button>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 shrink-0">
-                <ChefHat size={20} />
-              </div>
-              <h3 className="font-bold text-gray-800 line-clamp-1 pr-6">{recipe.name}</h3>
-            </div>
-            <p className="text-sm text-gray-500">{recipe.ingredients.length} ingredients</p>
-          </div>
-        ))}
-      </div>
-      {filteredRecipes.length === 0 && (
-         <div className="text-center py-12 text-gray-400">
-           <Utensils size={48} className="mx-auto mb-2 opacity-50" />
-           <p>No recipes found.</p>
-           {recipes.length === 0 && <p className="text-sm">Create your first master dish!</p>}
-         </div>
+    <div className="glass-tab-content">
+      {filteredRecipes.length > 0 ? (
+        <ul className="space-y-2.5">
+          {filteredRecipes.map(recipe => (
+            <li key={recipe.id} className="glass-surface glass-row">
+              <button type="button" className="glass-row-link" onClick={() => setSelectedRecipe(recipe)}>
+                <span className="glass-row-icon"><ChefHat size={20} aria-hidden="true" /></span>
+                <span className="glass-row-main">
+                  <strong>{recipe.name}</strong>
+                  <small>{recipe.ingredients.length} {recipe.ingredients.length === 1 ? 'ingredient' : 'ingredients'}</small>
+                </span>
+                <ChevronRight size={16} className="shrink-0" aria-hidden="true" />
+              </button>
+              <button type="button" aria-label={`Delete recipe ${recipe.name}`} onClick={() => deleteRecipe(recipe.id)} className="glass-circle glass-inset glass-delete">
+                <Trash2 size={16} aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="glass-card glass-surface glass-empty">
+          <Utensils size={30} className="mx-auto mb-2" aria-hidden="true" />
+          <p>{recipes.length === 0 ? 'No recipes yet.' : 'No recipes found.'}</p>
+        </div>
       )}
     </div>
   );
@@ -1375,9 +1316,9 @@ export default function App() {
     }, {});
 
     return (
-      <div className="space-y-6 pb-24 animate-in fade-in zoom-in-95 duration-300">
-        <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="font-bold text-gray-700 mb-3 flex items-center gap-2">
+      <div className="glass-tab-content">
+        <section className="glass-card glass-surface p-4">
+          <h2 className="glass-section-title mb-3">
             <Calendar size={18} /> Next Meals
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
@@ -1389,16 +1330,16 @@ export default function App() {
                const recipeName = plannedMeal ? recipes.find(r => r.id === plannedMeal.recipeId)?.name : null;
 
                return (
-                 <div key={offset} className="min-w-[130px] bg-indigo-50 p-3 rounded-xl flex flex-col justify-between h-28 relative group transition-transform hover:scale-[1.02]">
+                 <div key={offset} className="glass-inset min-w-[140px] p-3 flex flex-col justify-between min-h-28">
                    <div className="flex justify-between items-start">
-                     <span className="text-xs font-bold text-indigo-400 uppercase">{dayName}</span>
+                     <span className="text-xs font-bold glass-accent uppercase">{dayName}</span>
                      {plannedMeal ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteMeal(plannedMeal.id);
                           }}
-                          className="bg-white text-red-400 rounded-full p-1 shadow-sm hover:bg-red-50 hover:text-red-600 relative z-10 transition-colors"
+                          type="button" aria-label={`Remove meal for ${dayName}`} className="glass-circle glass-inset glass-delete"
                         >
                           <X size={14} />
                         </button>
@@ -1410,7 +1351,7 @@ export default function App() {
                             setMealSearchTerm(''); 
                             setIsSelectRecipeOpen(true);
                           }}
-                          className="bg-white text-indigo-600 rounded-full p-1 shadow-sm hover:bg-indigo-100 relative z-10 transition-colors"
+                          type="button" aria-label={`Add meal for ${dayName}`} className="glass-circle glass-inset glass-accent"
                         >
                          <Plus size={14} />
                         </button>
@@ -1418,13 +1359,13 @@ export default function App() {
                    </div>
                    {recipeName ? (
                      <div className="mt-2">
-                        <span className="text-sm font-medium text-indigo-900 line-clamp-2 leading-tight">{recipeName}</span>
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-indigo-500">
+                        <span className="text-sm font-semibold line-clamp-2 leading-tight">{recipeName}</span>
+                        <div className="mt-1 flex items-center gap-1 text-xs glass-muted">
                           <Check size={10} /> List added
                         </div>
                      </div>
                    ) : (
-                     <span className="text-xs text-indigo-300 mt-2 italic">Nothing planned</span>
+                     <span className="text-xs glass-muted mt-2">Nothing planned</span>
                    )}
                  </div>
                );
@@ -1432,38 +1373,38 @@ export default function App() {
           </div>
         </section>
 
-        <section className="bg-white p-4 rounded-2xl shadow-sm border border-purple-100">
-          <div className="flex items-center justify-between mb-4"><div><h2 className="font-bold text-gray-800">Shopping rhythm</h2><p className="text-sm text-gray-500">Calculated from item check-offs grouped into store trips</p></div><Clock3 size={20} className="text-[#7548D8]" /></div>
-          {shoppingAnalytics.trips.length < 2 ? <div className="p-4 rounded-xl bg-purple-50 text-sm text-[#5d34ba]">Check off items after at least two shopping trips to calculate your rhythm.</div> : <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.averageDaysBetweenTrips.toFixed(1)} days</strong><small className="block text-gray-500">Between shopping trips</small></div>
-            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.tripsThisMonth}</strong><small className="block text-gray-500">Trips this month</small></div>
-            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.averageItemsPerTrip.toFixed(1)}</strong><small className="block text-gray-500">Items per trip</small></div>
-            <div className="p-3 rounded-xl bg-purple-50"><strong className="text-xl text-[#7548D8]">{shoppingAnalytics.commonShoppingDay}</strong><small className="block text-gray-500">Most common day</small></div>
+        <section className="glass-card glass-surface p-4">
+          <div className="flex items-center justify-between mb-4"><div><h2 className="glass-section-title">Shopping rhythm</h2><p className="text-sm text-gray-500">Calculated from item check-offs grouped into store trips</p></div><Clock3 size={20} className="text-[#7548D8]" /></div>
+          {shoppingAnalytics.trips.length < 2 ? <div className="glass-inset p-3 text-sm glass-muted">Check off items after at least two shopping trips to calculate your rhythm.</div> : <div className="grid grid-cols-2 gap-3">
+            <div className="glass-inset p-3"><strong className="text-xl glass-accent">{shoppingAnalytics.averageDaysBetweenTrips.toFixed(1)} days</strong><small className="block text-gray-500">Between shopping trips</small></div>
+            <div className="glass-inset p-3"><strong className="text-xl glass-accent">{shoppingAnalytics.tripsThisMonth}</strong><small className="block text-gray-500">Trips this month</small></div>
+            <div className="glass-inset p-3"><strong className="text-xl glass-accent">{shoppingAnalytics.averageItemsPerTrip.toFixed(1)}</strong><small className="block text-gray-500">Items per trip</small></div>
+            <div className="glass-inset p-3"><strong className="text-xl glass-accent">{shoppingAnalytics.commonShoppingDay}</strong><small className="block text-gray-500">Most common day</small></div>
           </div>}
         </section>
 
-        <section className="bg-gradient-to-br from-purple-600 to-indigo-700 p-6 rounded-2xl shadow-lg text-white relative overflow-hidden">
+        <section className="glass-surface glass-card glass-year p-5 relative overflow-hidden">
            <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4">
              <Award size={100} />
            </div>
            <h2 className="text-2xl font-bold mb-1">My Year in Groceries</h2>
-           <p className="text-purple-200 text-sm mb-6">Your culinary journey highlights</p>
+           <p className="text-white/[.85] text-sm mb-4">Your culinary journey highlights</p>
            
-           <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl mb-6">
-              <p className="text-xs text-purple-200 uppercase font-bold mb-2">My Top Items</p>
+           <div className="glass-inset p-4 mb-4">
+              <p className="text-xs text-white/[.85] uppercase font-bold mb-2">My Top Items</p>
               <ul className="space-y-2">
                 {topItems.map((item, idx) => (
                   <li key={item.id} className="flex justify-between items-center text-sm border-b border-white/10 pb-1 last:border-0 last:pb-0">
                     <span className="text-white/90 font-medium">{idx + 1}. {item.name}</span>
-                    <span className="text-purple-200 bg-white/10 px-2 py-0.5 rounded-full text-xs">{item.buyCount}x</span>
+                    <span className="text-white/[.85] bg-white/10 px-2 py-0.5 rounded-full text-xs">{item.buyCount}x</span>
                   </li>
                 ))}
-                {topItems.length === 0 && <li className="text-purple-300 text-xs italic">No items bought yet.</li>}
+                {topItems.length === 0 && <li className="text-white/80 text-xs">No items bought yet.</li>}
               </ul>
            </div>
 
-           <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-4 text-purple-200 text-xs font-semibold uppercase tracking-wider">
+           <div className="glass-inset p-4">
+              <div className="flex items-center gap-2 mb-4 text-white/[.85] text-xs font-semibold uppercase tracking-wider">
                   <Trophy size={14} className="text-yellow-400" /> Favorite Recipes
               </div>
               <div className="flex justify-center items-end gap-2 px-2 h-32">
@@ -1474,8 +1415,8 @@ export default function App() {
            </div>
         </section>
 
-        <section className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-          <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+        <section className="glass-card glass-surface p-4">
+          <h2 className="glass-section-title mb-4">
             <PieChart size={18} /> Category Breakdown
           </h2>
           <div className="space-y-3">
@@ -1485,10 +1426,10 @@ export default function App() {
                const colorClass = 'bg-[#7548D8]';
                const percentage = Math.round((count / historyList.length) * 100);
                return (
-                 <div key={catId}>
-                   <div className="flex justify-between text-sm mb-1">
+                 <div key={catId} className="glass-inset p-3">
+                   <div className="flex justify-between gap-2 text-sm mb-1">
                      <span className="text-gray-600 capitalize">{name}</span>
-                     <span className="font-medium">{count} items ({percentage}%)</span>
+                     <span className="font-medium shrink-0">{count} items ({percentage}%)</span>
                    </div>
                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                      <div className={`h-full ${colorClass}`} style={{ width: `${percentage}%` }} />
@@ -1567,20 +1508,20 @@ export default function App() {
       {/* Outer Container for Full Viewport on Mobile using 100dvh for proper Safari support */}
       <div className={`grocery-app ${isDarkMode ? 'theme-dark' : 'theme-light'} fixed inset-0 w-full h-[100dvh] bg-[#eee8e3] font-sans text-gray-900 flex justify-center items-center`}>
         {/* Mobile Device Simulation/Actual Container */}
-        <div className={`grocery-shell grocery-${activeTab} w-full max-w-md h-full bg-[#fffaf6] shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70`}>
+        <div className={`grocery-shell grocery-${activeTab} w-full max-w-md h-full shadow-2xl relative flex flex-col overflow-hidden sm:rounded-[2rem] sm:h-[95vh] sm:border-[8px] sm:border-white/70`}>
           
           {/* Status Bar */}
 
 
           {/* Fixed Top Header (Outside ScrollView) */}
-          {!['home','settings'].includes(activeTab) && <div className={activeTab === 'shopping' ? 'glass-list-header' : 'px-4 pt-2 pb-2 bg-[#fffaf6] z-20 shrink-0 border-b border-purple-50'}>{renderHeader()}</div>}
+          {renderHeader()}
 
           {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
-          <main key={activeTab} className={`flex-1 min-h-0 overflow-y-auto relative custom-scrollbar ${activeTab === 'home' || activeTab === 'shopping' ? '' : 'p-4 pt-safe pb-24'}`}>
+          <main key={activeTab} className="glass-scroll flex-1 min-h-0 overflow-y-auto relative custom-scrollbar">
             {activeTab === 'home' && renderHomeView()}
             {activeTab === 'shopping' && (
               <>
-                <div role="status" className={checkoffNotice ? 'sticky top-0 z-30 mb-3 flex items-center gap-2 rounded-xl border border-purple-100 bg-white px-3 py-1 shadow-sm' : ''}>
+                <div role="status" className={checkoffNotice ? 'glass-status glass-surface sticky top-0 z-20 mb-3 flex items-center gap-2 px-3 py-1' : ''}>
                   {checkoffNotice && <>
                     <span className="flex-1 text-sm">{checkoffNotice.message}</span>
                     {checkoffNotice.item && <button type="button" onClick={() => undoCheckoff(checkoffNotice.item)} className="min-h-11 px-2 font-bold text-[#7548D8] [.theme-dark_&]:text-purple-300">Undo</button>}
@@ -1603,29 +1544,27 @@ export default function App() {
               </button>
             </div>
           )}
-          {activeTab !== 'settings' && (
-            <nav aria-label="Main navigation" className="glass-nav">
-              {[
-                ['home', Home, 'Home'],
-                ['shopping', ShoppingCart, 'List'],
-                ['recipes', ChefHat, 'Recipes'],
-                ['history', Clock3, 'Recent'],
-                ['analytics', Calendar, 'Plan'],
-              ].map(([tab, Icon, label]) => (
-                <button key={tab} type="button" aria-current={activeTab === tab ? 'page' : undefined} onClick={() => setActiveTab(tab)}>
-                  {React.createElement(Icon, { size: 22, strokeWidth: activeTab === tab ? 2.35 : 1.7, "aria-hidden": true })}
-                  <span>{label}</span>
-                </button>
-              ))}
-            </nav>
-          )}
+          <nav aria-label="Main navigation" className="glass-nav glass-surface">
+            {[
+              ['home', Home, 'Home'],
+              ['shopping', ShoppingCart, 'List'],
+              ['recipes', ChefHat, 'Recipes'],
+              ['history', Clock3, 'Recent'],
+              ['analytics', Calendar, 'Plan'],
+            ].map(([tab, Icon, label]) => (
+              <button key={tab} type="button" aria-current={activeTab === tab ? 'page' : undefined} onClick={() => setActiveTab(tab)}>
+                <span className="glass-nav-icon">{React.createElement(Icon, { size: 21, strokeWidth: activeTab === tab ? 2.25 : 1.7, "aria-hidden": true })}</span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
 
           <Modal isOpen={isAddItemOpen} onClose={isSavingItem ? undefined : closeAddItemModal} title={editingQuantity ? `Edit quantity · ${editingQuantity.name}` : selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
             <fieldset disabled={isSavingItem} className="min-w-0 space-y-4">
               {!editingQuantity && <>
               <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<span className="relative block mt-2"><input ref={itemNameInput} name="grocery-item-query" autoComplete="new-password" autoCorrect="off" autoCapitalize="sentences" spellCheck="false" value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="w-full bg-stone-100 p-3.5 pr-11 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" />{newItemName && <button type="button" aria-label="Clear item name" onClick={() => handleNewItemNameChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:text-gray-700"><X size={17} /></button>}</span></label>
               {recentItemSuggestions.length > 0 && (
-                <div className="rounded-2xl border border-purple-100 overflow-hidden">
+                <div className="glass-inset overflow-hidden">
                   {recentItemSuggestions.map(item => (
                     <div key={item.id} className="flex items-center gap-2 pr-2 border-b last:border-0 border-purple-50">
                       <button
@@ -1671,7 +1610,7 @@ export default function App() {
               <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
                 {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input aria-label="Quantity amount" inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
               </div>
-              {!editingQuantity && hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="category-accent p-2 rounded-xl border"><Icon size={18} aria-hidden="true" /></span>{category.name}</button>})}</div></div>}
+              {!editingQuantity && hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 glass-inset text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'text-gray-600'}`}><span className="category-accent p-2 rounded-xl border"><Icon size={18} aria-hidden="true" /></span>{category.name}</button>})}</div></div>}
               {itemSaveError && <p role="alert" className="text-sm text-gray-600">{editingQuantity ? 'Couldn’t save the quantity. Check the amount and try again.' : 'Couldn’t add the item. Please try again.'}</p>}
               {editingQuantity ? (
                 <button type="button" onClick={saveQuantity} className="glass-primary">Save quantity</button>
@@ -1753,7 +1692,7 @@ export default function App() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
                 <textarea value={newRecipeInstructions} onChange={(e) => setNewRecipeInstructions(e.target.value)} placeholder="1. Boil pasta..." rows={5} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-base" />
               </div>
-              <button onClick={addRecipe} className="w-full bg-indigo-600 text-white p-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">Save Recipe</button>
+              <button onClick={addRecipe} className="glass-primary px-4 py-3">Save Recipe</button>
             </div>
           </Modal>
 
@@ -1809,7 +1748,7 @@ export default function App() {
                  }
 
                  return filteredMealRecipes.map(recipe => (
-                   <button key={recipe.id} onClick={() => { planMeal(recipe, planningDayOffset); setIsSelectRecipeOpen(false); }} className="w-full text-left p-4 rounded-xl bg-gray-50 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-all group active:scale-[0.98]">
+                   <button key={recipe.id} onClick={() => { planMeal(recipe, planningDayOffset); setIsSelectRecipeOpen(false); }} className="glass-inset w-full text-left p-4 group">
                      <div className="flex justify-between items-center">
                        <span className="font-bold text-gray-700 group-hover:text-indigo-700">{recipe.name}</span>
                        <CalendarPlus size={18} className="text-gray-300 group-hover:text-indigo-500" />

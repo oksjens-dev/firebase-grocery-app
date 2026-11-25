@@ -11,6 +11,13 @@
   --glass-divider: rgb(82 47 110 / 13%);
   --glass-gutter: clamp(16px, 4.8vw, 24px);
   --glass-focus: #6b32c3;
+  --glass-inset-tint: rgb(244 235 253 / 66%);
+  --glass-inset-edge: rgb(255 255 255 / 78%);
+  --glass-dock-bottom: max(10px, env(safe-area-inset-bottom));
+  --glass-dock-space: calc(66px + var(--glass-dock-bottom));
+  color: var(--glass-ink);
+  isolation: isolate;
+  background: radial-gradient(ellipse at 88% 0%, #eaddfa 0, transparent 48%), #fffbf8;
 }
 
 .theme-dark .grocery-shell {
@@ -25,6 +32,9 @@
   --glass-butter-ink: #ffe6a4;
   --glass-divider: rgb(232 206 255 / 16%);
   --glass-focus: #dfc2ff;
+  --glass-inset-tint: rgb(88 61 114 / 32%);
+  --glass-inset-edge: rgb(232 208 255 / 17%);
+  background: radial-gradient(ellipse at 88% 0%, #38244f 0, transparent 52%), #1b1422;
 }
 
 .grocery-shell :is(button, summary, input):focus-visible {
@@ -32,29 +42,12 @@
   outline-offset: 3px;
 }
 
-.grocery-home,
-.grocery-shopping {
-  color: var(--glass-ink);
-  isolation: isolate;
-}
-
-.grocery-shopping {
-  background: radial-gradient(ellipse at 88% 0%, #eaddfa 0, transparent 48%), #fffbf8 !important;
-}
-
-.theme-dark .grocery-shopping.grocery-shell {
-  background: radial-gradient(ellipse at 88% 0%, #38244f 0, transparent 52%), #1b1422 !important;
-}
-
 .glass-home {
   position: relative;
   min-height: 100%;
   isolation: isolate;
-  background: #f5eafa;
   overflow: hidden;
 }
-
-.theme-dark .glass-home { background: #21162d; }
 
 .silk-waves {
   position: absolute;
@@ -95,7 +88,7 @@
 .theme-dark .silk-waves { filter: brightness(.64) saturate(1.14); }
 
 .glass-home-content {
-  padding: max(16px, env(safe-area-inset-top)) var(--glass-gutter) 25px;
+  padding: max(16px, env(safe-area-inset-top)) var(--glass-gutter) calc(var(--glass-dock-space) + 15px);
 }
 
 .glass-home-heading {
@@ -113,7 +106,7 @@
 }
 
 .glass-home-heading h1,
-.glass-list-heading h1 {
+.glass-tab-header h1 {
   font-size: clamp(34px, 9vw, 46px);
   font-weight: 760;
   letter-spacing: -.055em;
@@ -226,9 +219,16 @@
 .glass-insight small { font-size: 12px; color: var(--glass-muted); }
 .glass-insight > span:first-child { padding: 7px; border-radius: 10px; color: var(--glass-purple); background: var(--glass-lilac); font-weight: 700; }
 
-.glass-list-header { padding: max(14px, env(safe-area-inset-top)) var(--glass-gutter) 13px; flex-shrink: 0; }
-.glass-list-heading p { color: var(--glass-muted); font-size: 16px; margin-top: 4px; }
-.glass-list-tools { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px; }
+/* Fixed headers share the same rhythm and gutter as the content below. */
+.glass-tab-header {
+  padding: max(14px, env(safe-area-inset-top)) var(--glass-gutter) 13px;
+  flex-shrink: 0;
+}
+.glass-tab-header p { color: var(--glass-muted); font-size: 16px; margin-top: 4px; }
+.glass-tab-tools { display: flex; align-items: center; margin-bottom: 12px; gap: 8px; }
+.glass-tab-search { display: flex; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
+.glass-tab-search[data-open="true"] { flex: 1; }
+.glass-tab-search input { width: 100%; min-width: 0; padding: 9px 12px; border-radius: 999px; color: var(--glass-ink); }
 
 .glass-circle {
   display: grid;
@@ -238,24 +238,27 @@
   height: 44px;
   border-radius: 50%;
   border: 1px solid var(--glass-edge);
-  background-color: var(--glass-surface);
   color: var(--glass-ink);
 }
+.glass-circle.glass-inset { border-radius: 50%; }
 
-.glass-list-search { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.glass-list-search[open] { flex: 1; }
-.glass-list-search input { width: 100%; min-width: 0; padding: 9px 12px; border: 1px solid var(--glass-edge); background: var(--glass-surface); border-radius: 999px; color: var(--glass-ink); }
+.grocery-shell:not(.grocery-home) .glass-scroll { padding-bottom: calc(var(--glass-dock-space) + 12px); }
+.grocery-shell.grocery-shopping .glass-scroll { padding-bottom: calc(var(--glass-dock-space) + 79px); }
 
-.glass-list { padding: 3px var(--glass-gutter) 14px; }
-.glass-list-groups { display: grid; gap: 12px; }
-
-.glass-list-card {
-  border-radius: 24px;
-  border: 1px solid var(--glass-edge);
-  padding: 9px 12px 2px;
-  background: var(--glass-surface);
-  box-shadow: 0 6px 16px var(--glass-shadow);
+.glass-tab-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  padding: 3px var(--glass-gutter) 12px;
 }
+.glass-list { padding: 3px var(--glass-gutter) 12px; }
+.glass-list-groups { display: grid; gap: 12px; }
+.glass-settings { padding: max(16px, env(safe-area-inset-top)) var(--glass-gutter) 12px; }
+.glass-status { border-radius: 20px; margin-inline: var(--glass-gutter); }
+
+.glass-card { border-radius: 24px; }
+.glass-empty { padding: 32px 16px; text-align: center; color: var(--glass-muted); }
+.glass-list-card { padding: 9px 9px 8px; }
 
 .glass-list-card h2 {
   display: inline-flex;
@@ -264,7 +267,7 @@
   max-width: 100%;
   border-radius: 999px;
   padding: 5px 12px;
-  margin-bottom: 2px;
+  margin: 0 0 5px 2px;
   background: var(--glass-butter);
   color: var(--glass-butter-ink);
   font-size: 14px;
@@ -272,8 +275,8 @@
 }
 
 .glass-list-card h2 svg { flex-shrink: 0; }
-.glass-list-row { display: flex; align-items: center; gap: 8px; }
-.glass-list-row + .glass-list-row { border-top: 1px solid var(--glass-divider); }
+.glass-list-row { display: flex; align-items: center; gap: 8px; padding-inline: 7px; }
+.glass-list-row + .glass-list-row { margin-top: 3px; }
 
 .glass-check {
   flex: 1;
@@ -292,29 +295,142 @@
 .glass-quantity { min-height: 44px; min-width: 44px; color: var(--glass-purple); font-size: 13px; font-weight: 700; }
 .glass-quantity span { display: inline-block; background: var(--glass-lilac); border-radius: 999px; padding: 4px 9px; }
 
-.glass-trip { margin-top: 14px; padding: 0 12px; border: 1px solid var(--glass-edge); background: var(--glass-surface); border-radius: 22px; }
+.glass-trip { margin-top: 14px; padding: 0 12px; }
 .glass-trip[open] { padding-bottom: 12px; }
 .glass-trip summary { display: flex; align-items: center; gap: 8px; min-height: 46px; font-size: 14px; font-weight: 650; cursor: pointer; }
 .glass-trip[open] summary svg { transform: rotate(90deg); }
-.glass-trip summary::-webkit-details-marker, .glass-list-search summary::-webkit-details-marker { display: none; }
-.glass-list-action { padding: 5px var(--glass-gutter) 12px; box-shadow: 0 -5px 14px var(--glass-shadow); }
+.glass-trip summary::-webkit-details-marker { display: none; }
+/* Inset tiles borrow the card's frost and use a lighter inner edge. */
+.glass-inset {
+  background: linear-gradient(150deg, rgb(255 255 255 / 28%), transparent 65%), var(--glass-inset-tint);
+  border: 1px solid var(--glass-inset-edge);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 1px rgb(255 255 255 / 26%);
+}
+.theme-dark .glass-inset {
+  background: linear-gradient(150deg, rgb(226 196 255 / 8%), transparent 65%), var(--glass-inset-tint);
+  box-shadow: inset 0 1px 1px rgb(226 196 255 / 9%);
+}
+.glass-muted { color: var(--glass-muted); }
+.glass-accent { color: var(--glass-purple); }
+.glass-delete { color: var(--glass-muted); }
+.glass-delete:is(:hover, :focus-visible) { color: #a72642; }
+.theme-dark .glass-delete:is(:hover, :focus-visible) { color: #fda4ba; }
 
-.glass-nav {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  flex-shrink: 0;
-  position: relative;
-  z-index: 30;
-  padding: 7px 5px max(8px, env(safe-area-inset-bottom));
-  border-top: 1px solid var(--glass-edge);
-  background: var(--glass-surface);
-  box-shadow: 0 -6px 20px var(--glass-shadow);
-  -webkit-backdrop-filter: blur(20px) saturate(1.15);
-  backdrop-filter: blur(20px) saturate(1.15);
+.grocery-app .grocery-shell .category-accent {
+  color: var(--glass-butter-ink);
+  background-color: var(--glass-butter);
+  border-color: transparent;
 }
 
-.glass-nav button { display: grid; min-height: 44px; justify-items: center; align-content: center; gap: 3px; color: var(--glass-muted); font-size: 11px; }
+.glass-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 18px;
+}
+.glass-segment button {
+  min-height: 42px;
+  border-radius: 14px;
+  padding: 4px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--glass-muted);
+}
+.glass-segment button[aria-pressed="true"] {
+  color: var(--glass-purple);
+  background: var(--glass-lilac);
+  box-shadow: inset 0 1px 1px var(--glass-edge);
+}
+
+.glass-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 68px;
+  padding: 8px 10px;
+  border-radius: 21px;
+}
+.glass-row-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 52px; text-align: left; }
+.glass-row-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 39px;
+  height: 39px;
+  border-radius: 14px;
+  background: var(--glass-lilac);
+  color: var(--glass-purple);
+  box-shadow: inset 0 1px 1px var(--glass-edge);
+}
+.glass-row-main { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.glass-row-main strong, .glass-row-main small { display: block; }
+.glass-row-main small, .glass-row-meta { font-size: 13px; color: var(--glass-muted); }
+.glass-row-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+
+.glass-section-title { display: flex; align-items: center; gap: 8px; font-weight: 720; }
+.glass-section-title svg { flex-shrink: 0; color: var(--glass-purple); }
+
+.glass-surface.glass-year {
+  --glass-inset-tint: rgb(245 229 255 / 12%);
+  --glass-inset-edge: rgb(253 240 255 / 32%);
+  background:
+    radial-gradient(ellipse at 7% -20%, rgb(237 202 255 / 44%), transparent 58%),
+    radial-gradient(ellipse at 100% 60%, rgb(184 127 246 / 28%), transparent 75%),
+    linear-gradient(148deg, rgb(113 65 177 / 91%), rgb(66 29 119 / 94%));
+  border-color: rgb(235 211 255 / 71%);
+  box-shadow: inset 0 1px 1px rgb(255 245 255 / 59%), 0 14px 32px var(--glass-shadow);
+  color: #fff;
+}
+.theme-dark .glass-year { --glass-inset-tint: rgb(245 229 255 / 12%); }
+
+.glass-dialog { --glass-surface: rgb(255 249 255 / 78%); }
+.theme-dark .glass-dialog { --glass-surface: rgb(35 24 49 / 88%); }
+.glass-dialog-title { border-bottom: 1px solid var(--glass-divider); }
+.glass-dialog-body { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+.grocery-app .glass-dialog :is(input:not([type="checkbox"]), textarea, select),
+.grocery-app .glass-tab-search input {
+  background: var(--glass-inset-tint) !important;
+  border-color: var(--glass-inset-edge) !important;
+  color: var(--glass-ink);
+}
+
+.glass-list-action {
+  z-index: 21;
+  position: absolute;
+  inset-inline: var(--glass-gutter);
+  bottom: calc(var(--glass-dock-space) + 2px);
+}
+
+.glass-nav {
+  position: absolute;
+  inset-inline: var(--glass-gutter);
+  bottom: var(--glass-dock-bottom);
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 25px;
+}
+
+.glass-nav button {
+  display: grid;
+  min-height: 48px;
+  justify-items: center;
+  align-content: center;
+  gap: 1px;
+  border-radius: 17px;
+  color: var(--glass-muted);
+  font-size: 11px;
+}
+.glass-nav-icon { display: grid; place-items: center; width: 35px; height: 26px; border-radius: 12px; }
 .glass-nav button[aria-current] { color: var(--glass-purple); font-weight: 750; }
+.glass-nav button[aria-current] .glass-nav-icon {
+  background: var(--glass-lilac);
+  box-shadow: inset 0 1px 1px var(--glass-edge);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .grocery-shell * { transition-duration: 0s; }
