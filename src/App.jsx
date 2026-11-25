@@ -55,6 +55,7 @@ import {
   doc,
   onSnapshot,
   serverTimestamp,
+  runTransaction,
   writeBatch
 } from 'firebase/firestore';
 import {
@@ -415,6 +416,12 @@ export default function App() {
   const [customUnit, setCustomUnit] = useState('x');
   const [isSavingItem, setIsSavingItem] = useState(false);
   const [itemSaveError, setItemSaveError] = useState(false);
+  const [keepAdding, setKeepAdding] = useState(false);
+  const [editingQuantity, setEditingQuantity] = useState(null);
+  const [checkoffNotice, setCheckoffNotice] = useState(null);
+  const [isFinishingTrip, setIsFinishingTrip] = useState(false);
+  const itemNameInput = useRef(null);
+  const itemSavePending = useRef(false);
   const [deleteYear, setDeleteYear] = useState(null);
   
   const [newRecipeName, setNewRecipeName] = useState('');
@@ -570,6 +577,7 @@ export default function App() {
   // --- Derived State ---
   const shoppingList = useMemo(() => items.filter(i => !i.isBought).sort((a,b) => b.createdAt?.seconds - a.createdAt?.seconds), [items]);
   const historyList = useMemo(() => items.filter(i => i.isBought).sort((a,b) => b.boughtAt?.seconds - a.boughtAt?.seconds), [items]);
+  const tripItems = historyList.filter(item => item.purchaseEventId && item.inCurrentTrip);
   
   // Filtered lists
   const filteredShoppingList = useMemo(() => {
@@ -666,23 +674,26 @@ export default function App() {
       const existingItem = keepSeparate ? null : item || findSemanticMatch(items, name);
       if (existingItem) {
         const existingRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', existingItem.id);
-        if (!existingItem.isBought) {
-          const sameUnit = (existingItem.quantityUnit || 'x') === requested.unit;
-          await updateDoc(existingRef, {
-            quantity: requested.unit === 'x' ? (sameUnit ? Math.max(1, existingItem.quantity || 1) + requested.value : requested.value) : 1,
-            quantityValue: sameUnit ? Math.max(1, existingItem.quantityValue || existingItem.quantity || 1) + requested.value : requested.value,
+        await runTransaction(db, async transaction => {
+          const snapshot = await transaction.get(existingRef);
+          if (!snapshot.exists()) throw new Error('Matched item is no longer available');
+          const current = snapshot.data();
+          const combine = !current.isBought && (current.quantityUnit || 'x') === requested.unit;
+          const value = requested.value + (combine
+            ? Math.max(0.01, current.quantityValue || current.quantity || 1)
+            : 0);
+          transaction.update(existingRef, {
+            quantity: requested.unit === 'x' ? value : 1,
+            quantityValue: value,
             quantityUnit: requested.unit,
+            ...(current.isBought ? {
+              isBought: false,
+              boughtAt: null,
+              purchaseEventId: null,
+              inCurrentTrip: false,
+              category: current.category || category,
+            } : {}),
           });
-          return true;
-        }
-
-        await updateDoc(existingRef, {
-          isBought: false,
-          boughtAt: null,
-          category: existingItem.category || category,
-          quantity: requested.unit === 'x' ? requested.value : 1,
-          quantityValue: requested.value,
-          quantityUnit: requested.unit,
         });
         return true;
       }
@@ -719,8 +730,7 @@ export default function App() {
     }
   };
 
-  const closeAddItemModal = () => {
-    setIsAddItemOpen(false);
+  const resetItemForm = () => {
     setItemSaveError(false);
     setNewItemName('');
     setNewItemCategory('other');
@@ -729,6 +739,22 @@ export default function App() {
     setCustomQuantityOpen(false);
     setCustomQuantity('1');
     setCustomUnit('x');
+  };
+
+  const closeAddItemModal = () => {
+    setIsAddItemOpen(false);
+    setKeepAdding(false);
+    setEditingQuantity(null);
+    resetItemForm();
+  };
+
+  const openQuantityEditor = (item) => {
+    resetItemForm();
+    setEditingQuantity(item);
+    setCustomQuantityOpen(true);
+    setCustomQuantity(String(item.quantityValue || item.quantity || 1));
+    setCustomUnit(item.quantityUnit || 'x');
+    setIsAddItemOpen(true);
   };
 
   const openAddItemModal = (item = null) => {
@@ -750,43 +776,134 @@ export default function App() {
 
   const submitItem = async ({ item, quantity = currentQuantity(), keepSeparate = false } = {}) => {
     const name = item?.name || newItemName;
-    if (!name.trim() || isSavingItem) return;
+    if (!name.trim() || itemSavePending.current) return;
 
+    itemSavePending.current = true;
     setIsSavingItem(true);
     setItemSaveError(false);
     const category = item ? item.category || 'other' : newItemCategory;
     const saved = await addItem(name, category, quantity, { item, keepSeparate });
+    itemSavePending.current = false;
     setIsSavingItem(false);
-    if (saved) closeAddItemModal();
-    else setItemSaveError(true);
+    if (!saved) {
+      setItemSaveError(true);
+      return;
+    }
+    if (keepAdding) {
+      resetItemForm();
+      requestAnimationFrame(() => itemNameInput.current?.focus());
+      return;
+    }
+    closeAddItemModal();
   };
 
-  const toggleItemStatus = async (item) => {
-    if (!user) return;
+  const saveQuantity = async () => {
+    if (itemSavePending.current) return;
+    const { value, unit } = currentQuantity();
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0.01) {
+      setItemSaveError(true);
+      return;
+    }
+    itemSavePending.current = true;
+    setIsSavingItem(true);
+    setItemSaveError(false);
     try {
-      const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id);
-      const batch = writeBatch(db);
-      batch.update(docRef, {
-        isBought: !item.isBought,
-        boughtAt: !item.isBought ? serverTimestamp() : null,
-        buyCount: !item.isBought
-          ? (item.buyCount || 0) + Math.max(1, item.quantity || 1)
-          : item.buyCount
+      const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', editingQuantity.id);
+      await runTransaction(db, async transaction => {
+        const snapshot = await transaction.get(itemRef);
+        if (!snapshot.exists() || snapshot.data().isBought) throw new Error('Item is no longer on the list');
+        transaction.update(itemRef, {
+          quantity: unit === 'x' ? amount : 1,
+          quantityValue: amount,
+          quantityUnit: unit,
+        });
       });
-      if (!item.isBought) {
-        const eventRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'purchaseEvents'));
-        batch.set(eventRef, {
+      closeAddItemModal();
+    } catch {
+      setItemSaveError(true);
+    } finally {
+      itemSavePending.current = false;
+      setIsSavingItem(false);
+    }
+  };
+
+  const checkOffItem = async (item) => {
+    if (!user) return;
+    const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id);
+    const eventRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'purchaseEvents'));
+    try {
+      const checked = await runTransaction(db, async transaction => {
+        const snapshot = await transaction.get(itemRef);
+        if (!snapshot.exists() || snapshot.data().isBought) return false;
+        const current = snapshot.data();
+        const count = Math.max(1, current.quantity || 1);
+        transaction.update(itemRef, {
+          isBought: true,
+          boughtAt: serverTimestamp(),
+          buyCount: (current.buyCount || 0) + count,
+          purchaseEventId: eventRef.id,
+          inCurrentTrip: true,
+        });
+        transaction.set(eventRef, {
           sourceItemId: item.id,
-          itemName: item.name,
-          category: item.category || 'other',
-          quantityValue: item.quantityValue || item.quantity || 1,
-          quantityUnit: item.quantityUnit || 'x',
+          itemName: current.name,
+          category: current.category || 'other',
+          quantityValue: current.quantityValue || current.quantity || 1,
+          quantityUnit: current.quantityUnit || 'x',
           checkedAt: serverTimestamp(),
         });
-      }
-      await batch.commit();
-    } catch (e) {
-      console.error("Error toggling item", e);
+        return true;
+      });
+      if (checked) setCheckoffNotice({ item: { ...item, purchaseEventId: eventRef.id }, message: `Checked off ${item.name}.` });
+    } catch {
+      setCheckoffNotice({ message: `Couldn’t check off ${item.name}. Try again.` });
+    }
+  };
+
+  const undoCheckoff = async (item) => {
+    const itemRef = doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id);
+    const eventRef = doc(db, 'artifacts', appId, 'public', 'data', 'purchaseEvents', item.purchaseEventId);
+    try {
+      const restored = await runTransaction(db, async transaction => {
+        const snapshot = await transaction.get(itemRef);
+        const current = snapshot.data();
+        if (!current?.isBought || current.purchaseEventId !== eventRef.id) return false;
+        transaction.update(itemRef, {
+          isBought: false,
+          boughtAt: null,
+          purchaseEventId: null,
+          inCurrentTrip: false,
+          buyCount: Math.max(0, (current.buyCount || 0) - Math.max(1, current.quantity || 1)),
+        });
+        transaction.delete(eventRef);
+        return true;
+      });
+      setCheckoffNotice({ message: restored ? `${item.name} is back on the list.` : `${item.name} has already changed on the shared list.` });
+    } catch {
+      setCheckoffNotice({ item, message: `Couldn’t undo ${item.name}. Try again.` });
+    }
+  };
+
+  const finishTrip = async () => {
+    setIsFinishingTrip(true);
+    try {
+      await runTransaction(db, async transaction => {
+        const snapshots = await Promise.all(tripItems.map(item =>
+          transaction.get(doc(db, 'artifacts', appId, 'public', 'data', 'items', item.id))
+        ));
+        snapshots.forEach((snapshot, index) => {
+          const current = snapshot.data();
+          if (current?.isBought && current.purchaseEventId === tripItems[index].purchaseEventId) {
+            transaction.update(snapshot.ref, { inCurrentTrip: false });
+          }
+        });
+      });
+      setCheckoffNotice({ message: 'Shopping trip finished.' });
+    } catch {
+      setCheckoffNotice({ message: 'Couldn’t finish the trip. Try again.' });
+    } finally {
+      setIsFinishingTrip(false);
     }
   };
 
@@ -1052,9 +1169,12 @@ export default function App() {
         <div><p className="text-xs font-bold uppercase tracking-widest text-[#7548D8]">Household overview</p><h1 className="text-3xl font-bold leading-tight mt-2">{new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'},<br />Marie &amp; Jens</h1></div>
         <button onClick={() => setActiveTab('settings')} className="p-3 rounded-full bg-white/70 backdrop-blur-xl border border-white shadow-lg text-gray-700"><Settings size={21} /></button>
       </div>
+      <button type="button" onClick={() => openAddItemModal()} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#7548D8] px-4 font-bold text-white">
+        <Plus size={18} aria-hidden="true" /> Add item
+      </button>
       <div className="rounded-3xl bg-white border border-purple-100 shadow-sm overflow-hidden">
         <button onClick={() => setActiveTab('shopping')} className="w-full flex items-center gap-3 p-4 text-left bg-[#7548D8] text-white">
-          <span className="p-2 rounded-xl bg-white/15"><ShoppingCart size={19} /></span><span className="flex-1"><strong className="block">Shopping List</strong><small className="text-white/75">{shoppingList.length} items</small></span><span className="px-2 py-1 rounded-full bg-white/20 text-xs font-bold">{shoppingList.length}</span>
+          <span className="p-2 rounded-xl bg-white/15"><ShoppingCart size={19} /></span><span className="flex-1"><strong className="block">Shopping List</strong><small className="text-white/75">{shoppingList.length} {shoppingList.length === 1 ? 'item' : 'items'} left</small></span>
         </button>
         {[[recipes.length, 'recipes', ChefHat, 'Recipes', `${recipes.length} saved`], [historyList.length, 'history', Clock3, 'Recent', `${historyList.length} bought items`], [mealPlan.length, 'analytics', Calendar, 'Planning & Analytics', `${mealPlan.length} meals planned`]].map(([, tab, iconComponent, title, subtitle]) => (
           <button key={tab} onClick={() => setActiveTab(tab)} className="w-full flex items-center gap-3 p-4 text-left border-t border-purple-50">
@@ -1103,18 +1223,20 @@ export default function App() {
             const CategoryIcon = category.icon;
             return <section key={category.id}><div className="flex items-center gap-2 mb-2"><span className="category-accent p-2 rounded-xl border shrink-0"><CategoryIcon size={18} aria-hidden="true" /></span><h2 className="font-bold text-gray-800 flex-1">{category.name}</h2><small className="text-gray-400">{categoryItems.length} {categoryItems.length === 1 ? 'item' : 'items'}</small></div><div className="rounded-2xl bg-white border border-purple-100 overflow-hidden">{categoryItems.map(item => (
             <div key={item.id} className="p-3 border-b last:border-0 border-purple-50 flex items-center justify-between group transition-all">
-              <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleItemStatus(item)}>
-                <div className="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center transition-colors hover:border-indigo-500 group-hover:border-indigo-400">
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-800">{item.name}</p>
-                    <span className="text-xs font-bold text-[#7548D8] bg-purple-50 px-2 py-0.5 rounded-full">{formatQuantity(item)}</span>
-                  </div>
-                  <CategoryBadge categoryId={item.category} />
-                </div>
-              </div>
               <button
+                type="button"
+                aria-label={`Check off ${item.name}`}
+                onClick={() => checkOffItem(item)}
+                className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                <span className="size-7 shrink-0 rounded-full border-2 border-gray-400" aria-hidden="true" />
+                <span className="break-words font-medium text-gray-800">{item.name}</span>
+              </button>
+              <button type="button" aria-label={`Edit quantity for ${item.name}, currently ${formatQuantity(item)}`} onClick={() => openQuantityEditor(item)} className="min-h-11 min-w-11 rounded-xl bg-purple-50 px-2 text-xs font-bold text-[#7548D8] [.theme-dark_&]:text-purple-300">
+                {formatQuantity(item)}
+              </button>
+              <button
+                aria-label={`Remove ${item.name}`}
                 onClick={() => deleteItem(item.id)}
                 className="text-gray-300 hover:text-red-500 p-2 transition-colors active:scale-95"
               >
@@ -1122,6 +1244,21 @@ export default function App() {
               </button>
             </div>))}</div></section>})}
         </div>
+      )}
+      {tripItems.length > 0 && (
+        <details className="rounded-2xl border border-purple-100 bg-white p-4">
+          <summary className="cursor-pointer font-bold">Checked this trip ({tripItems.length})</summary>
+          <ul className="mt-2 divide-y divide-purple-50">
+            {tripItems.map(item => (
+              <li key={item.id} className="flex min-h-11 items-center gap-3">
+                <Check size={18} aria-hidden="true" />
+                <span className="flex-1">{item.name} · {formatQuantity(item)}</span>
+                {item.purchaseEventId && <button type="button" aria-label={`Undo check-off for ${item.name}`} onClick={() => undoCheckoff(item)} className="min-h-11 px-2 font-bold text-[#7548D8] [.theme-dark_&]:text-purple-300">Undo</button>}
+              </li>
+            ))}
+          </ul>
+          <button type="button" onClick={finishTrip} disabled={isFinishingTrip} className="mt-2 min-h-11 rounded-xl border border-purple-200 px-3 font-bold text-[#7548D8] disabled:opacity-60 [.theme-dark_&]:text-purple-300">Finish trip</button>
+        </details>
       )}
       <button onClick={() => openAddItemModal()} className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 flex items-center gap-2 px-5 py-3 rounded-full bg-[#7548D8]/90 backdrop-blur-xl text-white font-bold shadow-xl border border-white/30"><Plus size={18} /> Add Item</button>
     </div>
@@ -1420,7 +1557,18 @@ export default function App() {
           {/* Main Scrolling Area - Flex 1 takes available space, overflow handles scrolling */}
           <main className="flex-1 overflow-y-auto p-4 pt-2 pb-24 relative custom-scrollbar">
             {activeTab === 'home' && renderHomeView()}
-            {activeTab === 'shopping' && renderShoppingListView()}
+            {activeTab === 'shopping' && (
+              <>
+                <div role="status" className={checkoffNotice ? 'sticky top-0 z-30 mb-3 flex items-center gap-2 rounded-xl border border-purple-100 bg-white px-3 py-1 shadow-sm' : ''}>
+                  {checkoffNotice && <>
+                    <span className="flex-1 text-sm">{checkoffNotice.message}</span>
+                    {checkoffNotice.item && <button type="button" onClick={() => undoCheckoff(checkoffNotice.item)} className="min-h-11 px-2 font-bold text-[#7548D8] [.theme-dark_&]:text-purple-300">Undo</button>}
+                    <button type="button" aria-label="Dismiss message" onClick={() => setCheckoffNotice(null)} className="min-h-11 min-w-11 grid place-items-center"><X size={18} /></button>
+                  </>}
+                </div>
+                {renderShoppingListView()}
+              </>
+            )}
             {activeTab === 'recipes' && renderRecipesView()}
             {activeTab === 'history' && renderHistoryView()}
             {activeTab === 'analytics' && renderAnalyticsView()}
@@ -1462,9 +1610,10 @@ export default function App() {
             </div>
           </nav>}
 
-          <Modal isOpen={isAddItemOpen} onClose={isSavingItem ? undefined : closeAddItemModal} title={selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
+          <Modal isOpen={isAddItemOpen} onClose={isSavingItem ? undefined : closeAddItemModal} title={editingQuantity ? `Edit quantity · ${editingQuantity.name}` : selectedItem ? 'Add Recent Item' : 'Add Item'} bottomSheet>
             <fieldset disabled={isSavingItem} className="min-w-0 space-y-4">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<span className="relative block mt-2"><input name="grocery-item-query" autoComplete="new-password" autoCorrect="off" autoCapitalize="sentences" spellCheck="false" value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="w-full bg-stone-100 p-3.5 pr-11 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" />{newItemName && <button type="button" aria-label="Clear item name" onClick={() => handleNewItemNameChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:text-gray-700"><X size={17} /></button>}</span></label>
+              {!editingQuantity && <>
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-500">Item name<span className="relative block mt-2"><input ref={itemNameInput} name="grocery-item-query" autoComplete="new-password" autoCorrect="off" autoCapitalize="sentences" spellCheck="false" value={newItemName} onChange={(event) => handleNewItemNameChange(event.target.value)} placeholder="Start typing…" className="w-full bg-stone-100 p-3.5 pr-11 rounded-2xl text-base normal-case tracking-normal font-medium outline-none focus:ring-2 focus:ring-purple-200" />{newItemName && <button type="button" aria-label="Clear item name" onClick={() => handleNewItemNameChange('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full text-gray-400 hover:text-gray-700"><X size={17} /></button>}</span></label>
               {recentItemSuggestions.length > 0 && (
                 <div className="rounded-2xl border border-purple-100 overflow-hidden">
                   {recentItemSuggestions.map(item => (
@@ -1498,25 +1647,42 @@ export default function App() {
                 <div className="p-3 rounded-2xl bg-purple-50 text-[#5d34ba] [.theme-dark_&]:text-purple-300 text-sm flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-2"><Check size={17} aria-hidden="true" /> Matched with your item library</span>
                   <CategoryBadge categoryId={effectiveItemMatch.category} />
+                  {!effectiveItemMatch.isBought && (
+                    <span className="basis-full">
+                      {effectiveItemMatch.name} · {formatQuantity(effectiveItemMatch)} on list.
+                      {' '}{(effectiveItemMatch.quantityUnit || 'x') === currentQuantity().unit
+                        ? `Adds ${formatQuantity({ quantityValue: Number(currentQuantity().value) || 1, quantityUnit: currentQuantity().unit })} to the current quantity.`
+                        : `Changes the quantity to ${formatQuantity({ quantityValue: Number(currentQuantity().value) || 1, quantityUnit: currentQuantity().unit })}.`}
+                    </span>
+                  )}
                 </div>
               )}
+              </>}
               <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Quantity</p><div className="grid grid-cols-5 gap-2">{['1','500 g','1 kg','1 L'].map(preset => <button key={preset} onClick={() => { setQuantityPreset(preset); setCustomQuantityOpen(false); }} className={`py-3 rounded-xl text-xs font-bold border ${!customQuantityOpen && quantityPreset === preset ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200 text-gray-600'}`}>{preset}</button>)}<button onClick={() => setCustomQuantityOpen(true)} className={`grid place-items-center rounded-xl border ${customQuantityOpen ? 'bg-purple-50 text-[#7548D8] border-purple-300' : 'bg-stone-100 border-stone-200'}`}><MoreHorizontal size={18} /></button></div>
-                {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
+                {customQuantityOpen && <div className="mt-2 p-2 rounded-xl bg-stone-100 flex gap-2"><input aria-label="Quantity amount" inputMode="decimal" value={customQuantity} onChange={(event) => setCustomQuantity(event.target.value)} className="min-w-0 w-full px-3 rounded-lg" /><div className="flex">{['x','g','kg','ml','L'].map(unit => <button key={unit} onClick={() => setCustomUnit(unit)} className={`px-2 rounded-lg text-xs ${customUnit === unit ? 'bg-white text-[#7548D8] shadow-sm' : 'text-gray-500'}`}>{unit}</button>)}</div></div>}
               </div>
-              {hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="category-accent p-2 rounded-xl border"><Icon size={18} aria-hidden="true" /></span>{category.name}</button>})}</div></div>}
-              {itemSaveError && <p role="alert" className="text-sm text-gray-600">Couldn’t add the item. Please try again.</p>}
-              {hasItemName && !selectedItem && (
+              {!editingQuantity && hasItemName && !hasItemMatch && <div><p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Category</p><div className="grid grid-cols-3 gap-2">{allCategories.map(category => { const Icon = category.icon; return <button key={category.id} onClick={() => setNewItemCategory(category.id)} className={`min-h-20 p-2 rounded-2xl border text-[10px] flex flex-col items-center justify-center gap-1 ${newItemCategory === category.id ? 'bg-purple-100 text-[#7548D8] border-purple-300' : 'bg-white text-gray-600 border-purple-100'}`}><span className="category-accent p-2 rounded-xl border"><Icon size={18} aria-hidden="true" /></span>{category.name}</button>})}</div></div>}
+              {itemSaveError && <p role="alert" className="text-sm text-gray-600">{editingQuantity ? 'Couldn’t save the quantity. Check the amount and try again.' : 'Couldn’t add the item. Please try again.'}</p>}
+              {editingQuantity ? (
+                <button type="button" onClick={saveQuantity} className="w-full rounded-2xl bg-[#7548D8] p-4 font-bold text-white">Save quantity</button>
+              ) : (
+                <label className="flex min-h-11 items-center gap-3 text-sm font-medium">
+                  <input type="checkbox" className="size-5 accent-[#7548D8]" checked={keepAdding} onChange={event => setKeepAdding(event.target.checked)} />
+                  Keep adding after each item
+                </label>
+              )}
+              {!editingQuantity && hasItemName && !selectedItem && (
                 <button type="button" onClick={() => submitItem({ keepSeparate: hasItemMatch })} className="w-full break-words bg-[#7548D8] text-white p-4 rounded-2xl font-bold shadow-lg shadow-purple-200 disabled:opacity-60">
-                  Add “{newItemName.trim()}” as a new item
+                  {keepAdding ? `Add “${newItemName.trim()}” as new & keep going` : `Add “${newItemName.trim()}” as a new item`}
                 </button>
               )}
-              {effectiveItemMatch && (
+              {!editingQuantity && effectiveItemMatch && (
                 <button
                   type="button"
                   onClick={() => submitItem({ item: effectiveItemMatch })}
                   className={`w-full break-words p-4 rounded-2xl font-bold disabled:opacity-60 ${selectedItem ? 'bg-[#7548D8] text-white shadow-lg shadow-purple-200' : 'bg-purple-50 text-[#7548D8] [.theme-dark_&]:text-purple-300 border border-purple-100'}`}
                 >
-                  {selectedItem ? 'Save to Shopping List' : `Add “${effectiveItemMatch.name}” from your library`}
+                  {keepAdding ? `Add “${effectiveItemMatch.name}” & keep going` : selectedItem ? 'Save to Shopping List' : `Add “${effectiveItemMatch.name}” from your library`}
                 </button>
               )}
             </fieldset>
